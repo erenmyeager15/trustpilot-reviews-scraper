@@ -166,7 +166,10 @@ export function buildCompanyHandler(input: ActorInput) {
         const companyRecord = parseCompany(bu, slug, request.url, pp?.filters?.reviewStatistics?.ratings);
         const resolvedName = companyRecord.companyName || companyName || slug;
 
-        await Actor.pushData({ ...companyRecord, type: 'company' });
+        // Company summaries go to a dedicated "companies" dataset so the default dataset
+        // stays a clean list of reviews (no mixed-type rows in exports).
+        const companyDataset = await Actor.openDataset('companies');
+        await companyDataset.pushData(companyRecord);
         log.info(`Company: ${resolvedName} | TrustScore ${companyRecord.overallTrustScore ?? 'n/a'} | ${companyRecord.totalReviewCount ?? '?'} reviews`);
 
         const totalPages =
@@ -193,7 +196,7 @@ export function buildCompanyHandler(input: ActorInput) {
 
                 if (verifiedOnly && !review.verifiedPurchase) continue;
 
-                await Actor.pushData({ ...review, type: 'review' });
+                await Actor.pushData(review);
                 await Actor.charge({ eventName: 'review-scraped' });
                 reviewCount++;
                 if (reviewCount >= maxReviews) break;

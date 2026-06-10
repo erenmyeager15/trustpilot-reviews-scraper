@@ -52,48 +52,6 @@
                             "scrapedAt": { "label": "Scraped At", "format": "text" }
                         }
                     }
-                },
-                "companies": {
-                    "title": "Companies",
-                    "transformation": {
-                        "fields": [
-                            "companyName",
-                            "domain",
-                            "trustpilotUrl",
-                            "overallTrustScore",
-                            "starRating",
-                            "totalReviewCount",
-                            "fiveStarPercent",
-                            "fourStarPercent",
-                            "threeStarPercent",
-                            "twoStarPercent",
-                            "oneStarPercent",
-                            "claimedStatus",
-                            "category",
-                            "websiteUrl",
-                            "scrapedAt"
-                        ]
-                    },
-                    "display": {
-                        "component": "table",
-                        "properties": {
-                            "companyName": { "label": "Company", "format": "text" },
-                            "domain": { "label": "Domain", "format": "text" },
-                            "trustpilotUrl": { "label": "Trustpilot URL", "format": "link" },
-                            "overallTrustScore": { "label": "TrustScore", "format": "number" },
-                            "starRating": { "label": "Stars", "format": "number" },
-                            "totalReviewCount": { "label": "Total Reviews", "format": "number" },
-                            "fiveStarPercent": { "label": "5 Star %", "format": "number" },
-                            "fourStarPercent": { "label": "4 Star %", "format": "number" },
-                            "threeStarPercent": { "label": "3 Star %", "format": "number" },
-                            "twoStarPercent": { "label": "2 Star %", "format": "number" },
-                            "oneStarPercent": { "label": "1 Star %", "format": "number" },
-                            "claimedStatus": { "label": "Claimed", "format": "boolean" },
-                            "category": { "label": "Category", "format": "text" },
-                            "websiteUrl": { "label": "Website", "format": "link" },
-                            "scrapedAt": { "label": "Scraped At", "format": "text" }
-                        }
-                    }
                 }
             }
         }
