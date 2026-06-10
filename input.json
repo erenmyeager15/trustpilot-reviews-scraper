@@ -1,0 +1,11 @@
+{
+    "companyNames": ["netflix.com"],
+    "companyUrls": [],
+    "maxReviewsPerCompany": 20,
+    "sortBy": "most_recent",
+    "filterByRating": "all",
+    "verifiedOnly": false,
+    "proxyConfiguration": {
+        "useApifyProxy": true
+    }
+}
