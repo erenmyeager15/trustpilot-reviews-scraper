@@ -128,6 +128,14 @@ You are only charged for reviews actually extracted - never for blocked or empty
 - **Market research** - surface recurring complaints and praise across an industry
 - **Lead generation** - identify businesses by rating, category, and review volume
 
+## How to Scrape Trustpilot Reviews (Step by Step)
+
+1. Click **Try for free** / **Run**.
+2. Enter one or more company domains in `companyNames` (e.g. `netflix.com`) or paste full Trustpilot URLs into `companyUrls`.
+3. Set `maxReviewsPerCompany` (start small to test, or use `0` for all available reviews).
+4. Optionally set `sortBy`, `filterByRating`, or `verifiedOnly` to focus the results.
+5. Run the Actor, then export results as JSON, CSV, Excel, or HTML, or pull them via the Apify API.
+
 ## Tips
 
 - Trustpilot uses anti-bot protection - keep **residential proxies** enabled for the most reliable results.
@@ -137,13 +145,3 @@ You are only charged for reviews actually extracted - never for blocked or empty
 ## License
 
 Apache-2.0
-
----
-
-## Maintainer publish checklist (Apify Console)
-
-1. **Build** the Actor on Apify (`apify push`) and confirm a green build.
-2. **Test run** with a tiny input (`maxReviewsPerCompany: 5`, residential proxy).
-3. **Monetization** → Pay per event → confirm `review-scraped` @ **$0.0015**, set as Primary.
-4. **Display information** → title, description, categories (Business, Lead Generation, Marketing), screenshot of the dataset.
-5. **Publish** → set Public → Submit for review.
