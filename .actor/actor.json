@@ -2,9 +2,9 @@
     "actorSpecification": 1,
     "name": "trustpilot-reviews-scraper",
     "title": "Trustpilot Reviews Scraper - Ratings, Replies & Insights",
-    "description": "Scrape Trustpilot company reviews, star ratings, TrustScores, reviewer details, dates, and company replies. No login or API key needed. Export to JSON, CSV, or Excel.",
+    "description": "Scrape Trustpilot company reviews, star ratings, TrustScores, dates, and company replies. No login or API key needed. Export to JSON, CSV, or Excel.",
     "version": "1.0",
-    "categories": ["BUSINESS", "LEAD_GENERATION", "MARKETING"],
+    "categories": ["BUSINESS", "MARKETING"],
     "dockerfile": "Dockerfile",
     "input": "../INPUT_SCHEMA.json",
     "storages": {
@@ -17,8 +17,6 @@
                         "fields": [
                             "reviewId",
                             "companyName",
-                            "reviewerName",
-                            "reviewerCountry",
                             "starRating",
                             "reviewTitle",
                             "reviewBody",
@@ -37,8 +35,6 @@
                         "properties": {
                             "reviewId": { "label": "Review ID", "format": "text" },
                             "companyName": { "label": "Company", "format": "text" },
-                            "reviewerName": { "label": "Reviewer", "format": "text" },
-                            "reviewerCountry": { "label": "Country", "format": "text" },
                             "starRating": { "label": "Stars", "format": "number" },
                             "reviewTitle": { "label": "Title", "format": "text" },
                             "reviewBody": { "label": "Review", "format": "text" },

@@ -1,15 +1,15 @@
 # Trustpilot Reviews Scraper - Ratings, Replies & Insights
 
-Scrape **Trustpilot company reviews** at scale - no login, no API key, no cookies required. Extract star ratings, full review text, reviewer details, dates, company replies, and overall TrustScores from any company page on Trustpilot. Export results to **JSON, CSV, Excel, or HTML**, or pull them through the Apify API.
+Scrape **Trustpilot company reviews** at scale - no login, no API key, no cookies required. Extract star ratings, full review text, dates, company replies, and overall TrustScores from any company page on Trustpilot. Export results to **JSON, CSV, Excel, or HTML**, or pull them through the Apify API.
 
-Perfect for **brand monitoring, competitor analysis, sentiment analysis, reputation management, and lead generation**.
+Perfect for **brand monitoring, competitor analysis, sentiment analysis, reputation monitoring, and market research**.
 
 ## Features
 
 - ✅ **No login or API key** - works straight out of the box
 - ✅ **Bypasses anti-bot protection** - handles Trustpilot's browser challenge automatically
 - ✅ **Multiple companies per run** - pass a list of domains or Trustpilot URLs
-- ✅ **Complete review data** - rating, title, body, dates, reviewer, country, company reply
+- ✅ **Complete review data** - rating, title, body, dates, company reply
 - ✅ **Company insights** - TrustScore, star rating, total reviews, full star distribution
 - ✅ **Filter & sort** - by star rating, most recent / most relevant, verified only
 - ✅ **Automatic pagination** - scrape from a handful of reviews up to thousands
@@ -25,7 +25,6 @@ Perfect for **brand monitoring, competitor analysis, sentiment analysis, reputat
 - Claimed status, category, and official website
 
 ### Review record
-- Reviewer name, country, and total review count
 - Star rating, title, and full review body
 - Date of experience and date posted
 - Verified status
@@ -90,9 +89,6 @@ Perfect for **brand monitoring, competitor analysis, sentiment analysis, reputat
     "reviewId": "6a2935848b5c27d1ace126be",
     "companyName": "Netflix",
     "companyUrl": "https://www.trustpilot.com/review/netflix.com",
-    "reviewerName": "Debra McCallum",
-    "reviewerCountry": "AU",
-    "reviewerReviewCount": 7,
     "starRating": 5,
     "reviewTitle": "Legends",
     "reviewBody": "Legends - just finished the series and WOW! Great true story and amazing acting!",
@@ -126,7 +122,7 @@ You are only charged for reviews actually extracted - never for blocked or empty
 - **Competitor analysis** - benchmark TrustScores and review sentiment against rivals
 - **Sentiment analysis & NLP** - feed clean review text into ML pipelines
 - **Market research** - surface recurring complaints and praise across an industry
-- **Lead generation** - identify businesses by rating, category, and review volume
+- **Reputation monitoring** - track review volume and ratings by category over time
 
 ## How to Scrape Trustpilot Reviews (Step by Step)
 
@@ -141,6 +137,12 @@ You are only charged for reviews actually extracted - never for blocked or empty
 - Trustpilot uses anti-bot protection - keep **residential proxies** enabled for the most reliable results.
 - Use `maxReviewsPerCompany: 0` to scrape every available review, or set a small number for quick samples.
 - Combine `filterByRating: "1"` with `sortBy: "most_recent"` to monitor the newest negative feedback.
+
+## Responsible Use
+
+This Actor is intended for lawful collection of publicly available information only. Users are responsible for ensuring their use complies with the source website's terms, robots.txt, applicable privacy laws, including India's DPDP Act, and all local regulations.
+
+Do not use this Actor to collect, store, sell, or misuse personal data without a lawful basis. The Actor author is not responsible for misuse by end users.
 
 ## License
 

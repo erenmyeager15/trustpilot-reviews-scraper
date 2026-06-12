@@ -1,8 +1,5 @@
 export interface ReviewDraft {
     reviewId: string;
-    reviewerName: string | null;
-    reviewerCountry: string | null;
-    reviewerReviewCount: number | null;
     starRating: number | null;
     reviewTitle: string | null;
     reviewBody: string | null;
@@ -54,9 +51,6 @@ export interface ReviewRecord {
     reviewId: string;
     companyName: string;
     companyUrl: string;
-    reviewerName: string | null;
-    reviewerCountry: string | null;
-    reviewerReviewCount: number | null;
     starRating: number | null;
     reviewTitle: string | null;
     reviewBody: string | null;
