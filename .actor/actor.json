@@ -2,7 +2,7 @@
     "actorSpecification": 1,
     "name": "trustpilot-reviews-scraper",
     "title": "Trustpilot Reviews Scraper - Ratings, Replies & Insights",
-    "description": "Scrape Trustpilot company reviews, star ratings, TrustScores, dates, and company replies. No login or API key needed. Export to JSON, CSV, or Excel.",
+    "description": "Collect public Trustpilot company review data including ratings, TrustScores, review text, dates, verification signals, and company replies. Export to JSON, CSV, or Excel.",
     "version": "1.0",
     "categories": ["BUSINESS", "MARKETING"],
     "dockerfile": "Dockerfile",
