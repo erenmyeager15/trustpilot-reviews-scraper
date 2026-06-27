@@ -1,0 +1,14 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Trustpilot Reviews Scraper Output",
+  "description": "Structured public Trustpilot review records with ratings, review text, dates, verification signals, company replies, review URLs, and scraped timestamps.",
+  "type": "object",
+  "properties": {
+    "results": {
+      "type": "string",
+      "title": "Trustpilot review records",
+      "description": "Clean dataset items containing public Trustpilot company reviews and reply metadata.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}

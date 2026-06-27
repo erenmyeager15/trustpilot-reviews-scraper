@@ -7,6 +7,8 @@
     "categories": ["BUSINESS", "MARKETING"],
     "dockerfile": "Dockerfile",
     "input": "../INPUT_SCHEMA.json",
+    "readme": "../README.md",
+    "output": "./output_schema.json",
     "storages": {
         "dataset": {
             "actorSpecification": 1,
@@ -56,10 +58,19 @@
         "pricingModel": "PAY_PER_EVENT",
         "pricingPerEvent": {
             "actorChargeEvents": {
+                "apify-actor-start": {
+                    "eventTitle": "Actor start",
+                    "eventDescription": "Charged when the run starts to cover browser anti-bot challenge handling and the proxy session. Number of events depends on memory (one per GB, minimum one).",
+                    "eventPriceUsd": 0.0025,
+                    "isPrimaryEvent": false,
+                    "isOneTimeEvent": true
+                },
                 "review-scraped": {
                     "eventTitle": "Review Scraped",
                     "eventDescription": "Charged for each Trustpilot review successfully extracted and saved to the dataset.",
-                    "eventPriceUsd": 0.0015
+                    "eventPriceUsd": 0.00075,
+                    "isPrimaryEvent": true,
+                    "isOneTimeEvent": false
                 }
             }
         }
@@ -67,7 +78,7 @@
     "defaultRunOptions": {
         "build": "latest",
         "memoryMbytes": 2048,
-        "timeoutSecs": 3600
+        "timeoutSecs": 1800
     },
     "minMemoryMbytes": 1024,
     "maxMemoryMbytes": 4096
