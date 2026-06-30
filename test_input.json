@@ -1,6 +1,6 @@
 {
-    "companyNames": ["netflix.com"],
-    "maxReviewsPerCompany": 5,
+    "companyNames": ["nike.com"],
+    "maxReviewsPerCompany": 1,
     "sortBy": "most_recent",
     "filterByRating": "all",
     "verifiedOnly": false,

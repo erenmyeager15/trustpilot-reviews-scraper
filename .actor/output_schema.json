@@ -7,7 +7,7 @@
     "results": {
       "type": "string",
       "title": "Trustpilot review records",
-      "description": "Clean dataset items containing public Trustpilot company reviews and reply metadata.",
+      "description": "Default dataset items containing public Trustpilot company reviews and reply metadata.",
       "template": "{{links.apiDefaultDatasetUrl}}/items"
     }
   }

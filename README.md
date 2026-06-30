@@ -1,149 +1,163 @@
-# Trustpilot Reviews Scraper - Ratings, Replies & Insights
+# Trustpilot Reviews Scraper
 
-Scrape **Trustpilot company reviews** at scale - no login, no API key, no cookies required. Extract star ratings, full review text, dates, company replies, and overall TrustScores from any company page on Trustpilot. Export results to **JSON, CSV, Excel, or HTML**, or pull them through the Apify API.
+Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains such as `nike.com` or full Trustpilot review URLs and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
 
-Perfect for **brand monitoring, competitor analysis, sentiment analysis, reputation monitoring, and market research**.
+The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves review records to the default dataset and saves company-level summary data to a separate `companies` dataset when a review is successfully collected.
 
-## Features
+## Quick start
 
-- ✅ **No login or API key** - works straight out of the box
-- ✅ **Bypasses anti-bot protection** - handles Trustpilot's browser challenge automatically
-- ✅ **Multiple companies per run** - pass a list of domains or Trustpilot URLs
-- ✅ **Complete review data** - rating, title, body, dates, company reply
-- ✅ **Company insights** - TrustScore, star rating, total reviews, full star distribution
-- ✅ **Filter & sort** - by star rating, most recent / most relevant, verified only
-- ✅ **Automatic pagination** - scrape from a handful of reviews up to thousands
-- ✅ **Clean structured output** - ready for spreadsheets, BI tools, or NLP pipelines
+Run one company with one recent review:
+
+```json
+{
+  "companyNames": ["nike.com"],
+  "companyUrls": [],
+  "maxReviewsPerCompany": 1,
+  "sortBy": "most_recent",
+  "filterByRating": "all",
+  "verifiedOnly": false,
+  "proxyConfiguration": {
+    "useApifyProxy": true,
+    "apifyProxyGroups": ["RESIDENTIAL"]
+  }
+}
+```
+
+Export results as JSON, CSV, Excel, XML, or HTML, or consume them through the Apify API, schedules, webhooks, Make, Zapier, n8n, and other integrations.
 
 ## What it extracts
 
-### Company record
-- Company name, domain, and Trustpilot URL
-- Overall TrustScore and average star rating
-- Total review count
-- Full rating distribution (1-5 star percentages)
-- Claimed status, category, and official website
+### Review rows
 
-### Review record
-- Star rating, title, and full review body
-- Date of experience and date posted
-- Verified status
-- Useful/likes count
-- Company reply text and reply date
-- Direct review URL and unique review ID
+- Review ID and direct Trustpilot review URL
+- Company name and source company page URL
+- Star rating
+- Review title and review body
+- Date of experience and review posted date
+- Verified-review flag
+- Useful count when shown
+- Company reply text and reply date when present
+- Scraped timestamp
+
+### Company summary rows
+
+Company summaries are written to the named `companies` dataset after the first review is saved for that company. They include:
+
+- Company name, domain, Trustpilot URL, and website URL
+- Overall TrustScore and star rating
+- Total review count
+- Rating distribution percentages
+- Claimed status and category when available
+- Scraped timestamp
+
+## Output dataset
+
+The default dataset is intentionally a clean list of reviews. The `Reviews` view includes the fields most users need for spreadsheet, BI, API, and sentiment-analysis workflows.
+
+### Verified review sample
+
+This shortened sample comes from a successful public Actor run:
+
+```json
+{
+  "reviewId": "6a37bb580ae7470586456bb9",
+  "companyName": "Nike",
+  "companyUrl": "https://www.trustpilot.com/review/nike.com?sort=recency",
+  "starRating": 1,
+  "reviewTitle": "I am extremely disappointed with my...",
+  "reviewBody": "I am extremely disappointed with my experience with Nike...",
+  "dateOfExperience": "2026-06-21T00:00:00.000Z",
+  "reviewPostedDate": "2026-06-21T12:22:16.000Z",
+  "verifiedPurchase": false,
+  "usefulCount": 0,
+  "companyReply": null,
+  "companyReplyDate": null,
+  "reviewUrl": "https://www.trustpilot.com/reviews/6a37bb580ae7470586456bb9",
+  "scrapedAt": "2026-06-21T18:25:13.289Z"
+}
+```
+
+Review text, ratings, counts, and reply data can change when Trustpilot updates the page or the reviewer/company edits content.
 
 ## Input
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `companyNames` | `string[]` | Company domains/names, e.g. `"netflix.com"` | `["netflix.com"]` |
-| `companyUrls` | `string[]` | Full Trustpilot URLs, e.g. `"https://www.trustpilot.com/review/netflix.com"` | `[]` |
-| `maxReviewsPerCompany` | `integer` | Max reviews per company (`0` = all available) | `20` |
-| `sortBy` | `string` | `most_recent`, `most_relevant`, or `lowest_rated` | `most_recent` |
-| `filterByRating` | `string` | `all`, `5`, `4`, `3`, `2`, or `1` | `all` |
-| `verifiedOnly` | `boolean` | Only keep verified reviews | `false` |
-| `proxyConfiguration` | `object` | Proxy settings (residential recommended) | Apify Residential |
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `companyNames` | array | `["nike.com"]` | Company domains or names. The Actor builds the Trustpilot review URL automatically. |
+| `companyUrls` | array | `[]` | Full Trustpilot company review URLs. |
+| `maxReviewsPerCompany` | integer | `1` | Maximum reviews to save per company. Use `0` only when you intentionally want all available pages. |
+| `sortBy` | string | `most_recent` | `most_recent`, `most_relevant`, or `lowest_rated`. |
+| `filterByRating` | string | `all` | `all`, `5`, `4`, `3`, `2`, or `1`. |
+| `verifiedOnly` | boolean | `false` | Save only reviews marked verified by Trustpilot. |
+| `proxyConfiguration` | object | Residential Apify Proxy | Proxy settings for browser requests. Residential proxies are recommended. |
 
-### Example input
+Provide at least one company domain/name or one full Trustpilot review URL. Start with `maxReviewsPerCompany: 1` to confirm output and cost before scaling.
 
-```json
-{
-    "companyNames": ["netflix.com", "spotify.com"],
-    "maxReviewsPerCompany": 100,
-    "sortBy": "most_recent",
-    "filterByRating": "all",
-    "verifiedOnly": false,
-    "proxyConfiguration": { "useApifyProxy": true, "apifyProxyGroups": ["RESIDENTIAL"] }
-}
-```
+## Common workflows
 
-## Sample output
+### Monitor recent negative feedback
 
-### Company
+Set `sortBy` to `most_recent` and `filterByRating` to `1` to collect the newest one-star reviews for a brand or competitor.
 
-```json
-{
-    "companyName": "Netflix",
-    "domain": "www.netflix.com",
-    "trustpilotUrl": "https://www.trustpilot.com/review/netflix.com",
-    "overallTrustScore": 1.5,
-    "starRating": 1.5,
-    "totalReviewCount": 13922,
-    "fiveStarPercent": 9,
-    "fourStarPercent": 5.5,
-    "threeStarPercent": 6.5,
-    "twoStarPercent": 10.4,
-    "oneStarPercent": 68.6,
-    "claimedStatus": true,
-    "category": "Hobby Store, Movie Streaming Service",
-    "websiteUrl": "https://www.netflix.com",
-    "scrapedAt": "2026-06-10T17:29:45.193Z",
-    "type": "company"
-}
-```
+### Compare competitors
 
-### Review
+Pass several company domains and compare TrustScore, star distribution, review volume, and recent review themes.
 
-```json
-{
-    "reviewId": "6a2935848b5c27d1ace126be",
-    "companyName": "Netflix",
-    "companyUrl": "https://www.trustpilot.com/review/netflix.com",
-    "starRating": 5,
-    "reviewTitle": "Legends",
-    "reviewBody": "Legends - just finished the series and WOW! Great true story and amazing acting!",
-    "dateOfExperience": "2026-06-10T00:00:00.000Z",
-    "reviewPostedDate": "2026-06-10T11:59:32.000Z",
-    "verifiedPurchase": false,
-    "usefulCount": 0,
-    "companyReply": null,
-    "companyReplyDate": null,
-    "reviewUrl": "https://www.trustpilot.com/reviews/6a2935848b5c27d1ace126be",
-    "scrapedAt": "2026-06-10T17:29:45.334Z",
-    "type": "review"
-}
-```
+### Feed sentiment analysis
 
-The dataset includes two ready-made views in the Apify console: **Reviews** and **Companies**.
+Export review titles, bodies, ratings, dates, and company replies to a spreadsheet, database, or NLP pipeline.
+
+### Build support reports
+
+Use recurring runs to watch new public reviews and route the dataset to a BI dashboard or workflow tool.
 
 ## Pricing
 
-This Actor uses **pay-per-result** pricing:
+This Actor uses Pay Per Event pricing.
 
 | Event | Price |
-|-------|-------|
-| Per review scraped | **$0.0015** ($1.50 / 1,000 reviews) |
+| --- | ---: |
+| Actor start | $0.00005 per GB of memory |
+| Each successfully saved `review-scraped` item | $0.0015 |
 
-You are only charged for reviews actually extracted - never for blocked or empty runs. Apify platform usage and proxy traffic are billed separately by Apify.
+The Actor default is 2 GB of memory, so the startup charge is approximately $0.00010 per run. A one-review sample run is therefore approximately $0.00160 before any applicable platform usage, proxy traffic, or account-level charges.
 
-## Use cases
+Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events, and the Actor stops accepting more review work when the user's maximum-cost limit is reached.
 
-- **Brand & reputation monitoring** - track what customers say about your business
-- **Competitor analysis** - benchmark TrustScores and review sentiment against rivals
-- **Sentiment analysis & NLP** - feed clean review text into ML pipelines
-- **Market research** - surface recurring complaints and praise across an industry
-- **Reputation monitoring** - track review volume and ratings by category over time
+## Limits and reliability
 
-## How to Scrape Trustpilot Reviews (Step by Step)
+- Trustpilot can change page structure or anti-bot behavior.
+- Residential proxies are recommended for reliable browser access.
+- Very large runs can take longer because the Actor paginates public review pages.
+- Company replies, useful counts, and verification labels are returned only when Trustpilot exposes them on the page.
+- `lowest_rated` uses the one-star filter when no explicit `filterByRating` is provided.
+- Company summaries are stored in a named dataset, while the default dataset stays review-only.
 
-1. Click **Try for free** / **Run**.
-2. Enter one or more company domains in `companyNames` (e.g. `netflix.com`) or paste full Trustpilot URLs into `companyUrls`.
-3. Set `maxReviewsPerCompany` (start small to test, or use `0` for all available reviews).
-4. Optionally set `sortBy`, `filterByRating`, or `verifiedOnly` to focus the results.
-5. Run the Actor, then export results as JSON, CSV, Excel, or HTML, or pull them via the Apify API.
+## API example
 
-## Tips
+```bash
+curl -X POST "https://api.apify.com/v2/acts/fascinating_lentil~trustpilot-reviews-scraper/runs?token=YOUR_APIFY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "companyNames": ["nike.com"],
+    "companyUrls": [],
+    "maxReviewsPerCompany": 1,
+    "sortBy": "most_recent",
+    "filterByRating": "all",
+    "verifiedOnly": false,
+    "proxyConfiguration": {
+      "useApifyProxy": true,
+      "apifyProxyGroups": ["RESIDENTIAL"]
+    }
+  }'
+```
 
-- Trustpilot uses anti-bot protection - keep **residential proxies** enabled for the most reliable results.
-- Use `maxReviewsPerCompany: 0` to scrape every available review, or set a small number for quick samples.
-- Combine `filterByRating: "1"` with `sortBy: "most_recent"` to monitor the newest negative feedback.
+## Responsible use
 
-## Responsible Use
+Use this Actor only for lawful collection of publicly available information. You are responsible for complying with Trustpilot's terms, privacy laws, consumer-review rules, and regulations that apply to your use case.
 
-This Actor is intended for lawful collection of publicly available information only. Users are responsible for ensuring their use complies with the source website's terms, robots.txt, applicable privacy laws, including India's DPDP Act, and all local regulations.
-
-Do not use this Actor to collect, store, sell, or misuse personal data without a lawful basis. The Actor author is not responsible for misuse by end users.
+Do not use the output for spam, harassment, profiling, or unlawful collection of personal data. This Actor is an independent tool and is not affiliated with, endorsed by, or sponsored by Trustpilot.
 
 ## License
 
-Apache-2.0
+Apache-2.0.

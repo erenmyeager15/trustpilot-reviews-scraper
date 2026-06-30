@@ -2,6 +2,20 @@ import { Actor, log } from 'apify';
 import { PlaywrightCrawlingContext } from 'crawlee';
 import { ActorInput, CompanyRecord, ReviewRecord } from './types.js';
 
+const REVIEW_SCRAPED_EVENT = 'review-scraped';
+
+let chargedReviewCount = 0;
+let savedCompanyCount = 0;
+let spendingLimitReached = false;
+
+export function getScrapeState() {
+    return {
+        chargedReviewCount,
+        savedCompanyCount,
+        spendingLimitReached,
+    };
+}
+
 function toNum(v: unknown): number | null {
     if (typeof v === 'number' && Number.isFinite(v)) return v;
     if (typeof v === 'string') {
@@ -19,14 +33,27 @@ function toStr(v: unknown): string | null {
     return null;
 }
 
+function effectiveStarFilter(sort: string, filter: string): string {
+    if (filter && filter !== 'all') return filter;
+    return sort === 'lowest_rated' ? '1' : 'all';
+}
+
 /** Build a Trustpilot review-page URL with sort / star filter / pagination. */
-function buildUrl(slug: string, sort: string, filter: string, pageNum: number): string {
+export function buildReviewPageUrl(slug: string, sort: string, filter: string, pageNum: number): string {
     const params = new URLSearchParams();
-    if (sort === 'most_recent' || sort === 'lowest_rated') params.set('sort', 'recency');
-    if (filter && filter !== 'all') params.set('stars', filter);
+    if (sort === 'most_recent') params.set('sort', 'recency');
+    const starFilter = effectiveStarFilter(sort, filter);
+    if (starFilter !== 'all') params.set('stars', starFilter);
     if (pageNum > 1) params.set('page', String(pageNum));
     const qs = params.toString();
     return `https://www.trustpilot.com/review/${slug}${qs ? `?${qs}` : ''}`;
+}
+
+function reviewMatchesStarFilter(review: ReviewRecord, sort: string, filter: string): boolean {
+    const starFilter = effectiveStarFilter(sort, filter);
+    if (starFilter === 'all') return true;
+    const expected = Number(starFilter);
+    return review.starRating !== null && Number.isFinite(review.starRating) && Math.round(review.starRating) === expected;
 }
 
 /** Pull the parsed __NEXT_DATA__ payload out of the rendered page. */
@@ -146,6 +173,11 @@ export function buildCompanyHandler(input: ActorInput) {
             filter: string;
         };
 
+        if (spendingLimitReached) {
+            request.noRetry = true;
+            throw new Error('Charge limit already reached; stopping before scraping another Trustpilot company.');
+        }
+
         const firstData = await readNextData(page);
         if (!firstData) {
             // No data island -> almost always the AWS WAF challenge blocked this session.
@@ -163,10 +195,6 @@ export function buildCompanyHandler(input: ActorInput) {
         const companyRecord = parseCompany(bu, slug, request.url, pp?.filters?.reviewStatistics?.ratings);
         const resolvedName = companyRecord.companyName || companyName || slug;
 
-        // Company summaries go to a dedicated "companies" dataset so the default dataset
-        // stays a clean list of reviews (no mixed-type rows in exports).
-        const companyDataset = await Actor.openDataset('companies');
-        await companyDataset.pushData(companyRecord);
         log.info(`Company: ${resolvedName} | TrustScore ${companyRecord.overallTrustScore ?? 'n/a'} | ${companyRecord.totalReviewCount ?? '?'} reviews`);
 
         const totalPages =
@@ -176,6 +204,7 @@ export function buildCompanyHandler(input: ActorInput) {
         let reviewCount = 0;
         let pageNum = 1;
         let currentData: any = firstData;
+        let companySummarySaved = false;
 
         while (reviewCount < maxReviews) {
             const pageProps = currentData?.props?.pageProps ?? {};
@@ -191,21 +220,44 @@ export function buildCompanyHandler(input: ActorInput) {
                 if (seen.has(review.reviewId)) continue;
                 seen.add(review.reviewId);
 
+                if (!reviewMatchesStarFilter(review, sort, filter)) continue;
                 if (verifiedOnly && !review.verifiedPurchase) continue;
 
-                await Actor.pushData(review);
-                await Actor.charge({ eventName: 'review-scraped' });
-                reviewCount++;
+                const charge = await Actor.pushData(review, REVIEW_SCRAPED_EVENT);
+                const recordWasSaved = charge.chargedCount > 0 || !charge.eventChargeLimitReached;
+
+                if (recordWasSaved) {
+                    chargedReviewCount++;
+                    reviewCount++;
+
+                    if (!companySummarySaved) {
+                        // Company summaries go to a dedicated "companies" dataset after the first
+                        // saved review so blocked or empty runs do not create zero-revenue output.
+                        const companyDataset = await Actor.openDataset('companies');
+                        await companyDataset.pushData(companyRecord);
+                        savedCompanyCount++;
+                        companySummarySaved = true;
+                    }
+                }
+
+                if (charge.eventChargeLimitReached) {
+                    spendingLimitReached = true;
+                    request.noRetry = true;
+                    log.warning(`Charge limit reached for ${REVIEW_SCRAPED_EVENT}; stopping without saving more reviews.`);
+                    break;
+                }
+
                 if (reviewCount >= maxReviews) break;
             }
 
             log.info(`Scraped ${reviewCount}/${maxReviews === Number.POSITIVE_INFINITY ? 'all' : maxReviews} reviews for ${resolvedName} (page ${pageNum})`);
 
+            if (spendingLimitReached) break;
             if (reviewCount >= maxReviews) break;
             if (totalPages != null && pageNum >= totalPages) break;
 
             pageNum++;
-            const nextUrl = buildUrl(slug, sort, filter, pageNum);
+            const nextUrl = buildReviewPageUrl(slug, sort, filter, pageNum);
             try {
                 await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
             } catch (e) {

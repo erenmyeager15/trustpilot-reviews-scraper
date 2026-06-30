@@ -1,36 +1,36 @@
 {
-    "title": "Trustpilot Reviews Scraper",
-    "description": "Provide one or more company domains (e.g. \"netflix.com\") or full Trustpilot review URLs and configure how many reviews to extract.",
+    "title": "Trustpilot Reviews Scraper: Public Reviews & Ratings",
+    "description": "Scrape public Trustpilot reviews and company rating summaries from company domains or full Trustpilot review URLs.",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
         "companyNames": {
-            "title": "Company Domains / Names",
-            "description": "List of company domains or names to scrape, e.g. \"netflix.com\", \"spotify.com\". The scraper builds the Trustpilot URL automatically.",
+            "title": "Company Domains or Names",
+            "description": "Company domains or names to scrape, for example \"nike.com\" or \"spotify.com\". The Actor builds the Trustpilot URL automatically.",
             "type": "array",
             "editor": "stringList",
-            "prefill": ["netflix.com"],
-            "default": ["netflix.com"]
+            "prefill": ["nike.com"],
+            "default": ["nike.com"]
         },
         "companyUrls": {
             "title": "Trustpilot Company URLs",
-            "description": "List of full Trustpilot company page URLs, e.g. \"https://www.trustpilot.com/review/netflix.com\".",
+            "description": "Full Trustpilot company review URLs, for example \"https://www.trustpilot.com/review/nike.com\".",
             "type": "array",
             "editor": "stringList",
             "default": []
         },
         "maxReviewsPerCompany": {
             "title": "Max Reviews Per Company",
-            "description": "Maximum number of reviews to scrape per company. Set to 0 to scrape all available reviews.",
+            "description": "Maximum number of reviews to save per company. Start with 1 for a cheap sample. Set to 0 only when you intentionally want all available pages.",
             "type": "integer",
             "editor": "number",
-            "default": 20,
+            "default": 1,
             "minimum": 0,
             "maximum": 100000
         },
         "sortBy": {
             "title": "Sort Reviews By",
-            "description": "How to order reviews on each company page.",
+            "description": "How to order reviews on each company page. Lowest rated applies a one-star filter unless another rating filter is selected.",
             "type": "string",
             "editor": "select",
             "default": "most_recent",
@@ -39,7 +39,7 @@
         },
         "filterByRating": {
             "title": "Filter By Star Rating",
-            "description": "Only scrape reviews with this star rating. Choose \"All Ratings\" for no filter.",
+            "description": "Only save reviews with this star rating. Choose \"All Ratings\" for no explicit rating filter.",
             "type": "string",
             "editor": "select",
             "default": "all",
@@ -48,14 +48,14 @@
         },
         "verifiedOnly": {
             "title": "Verified Reviews Only",
-            "description": "If enabled, only verified reviews are saved to the dataset.",
+            "description": "If enabled, only reviews marked verified by Trustpilot are saved to the dataset.",
             "type": "boolean",
             "editor": "checkbox",
             "default": false
         },
         "proxyConfiguration": {
             "title": "Proxy Configuration",
-            "description": "Trustpilot uses anti-bot protection, so residential proxies are strongly recommended for reliable results.",
+            "description": "Proxy settings for browser requests. Trustpilot uses anti-bot protection, so residential proxies are recommended for reliable results.",
             "type": "object",
             "editor": "proxy",
             "default": {

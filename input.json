@@ -1,11 +1,12 @@
 {
-    "companyNames": ["netflix.com"],
+    "companyNames": ["nike.com"],
     "companyUrls": [],
-    "maxReviewsPerCompany": 20,
+    "maxReviewsPerCompany": 1,
     "sortBy": "most_recent",
     "filterByRating": "all",
     "verifiedOnly": false,
     "proxyConfiguration": {
-        "useApifyProxy": true
+        "useApifyProxy": true,
+        "apifyProxyGroups": ["RESIDENTIAL"]
     }
 }

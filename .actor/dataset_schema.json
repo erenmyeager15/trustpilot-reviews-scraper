@@ -1,0 +1,43 @@
+{
+  "actorSpecification": 1,
+  "views": {
+    "reviews": {
+      "title": "Reviews",
+      "transformation": {
+        "fields": [
+          "companyName",
+          "starRating",
+          "reviewTitle",
+          "reviewBody",
+          "dateOfExperience",
+          "reviewPostedDate",
+          "verifiedPurchase",
+          "usefulCount",
+          "companyReply",
+          "companyReplyDate",
+          "reviewUrl",
+          "reviewId",
+          "scrapedAt"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "companyName": { "label": "Company", "format": "text" },
+          "starRating": { "label": "Stars", "format": "number" },
+          "reviewTitle": { "label": "Title", "format": "text" },
+          "reviewBody": { "label": "Review", "format": "text" },
+          "dateOfExperience": { "label": "Experience Date", "format": "date" },
+          "reviewPostedDate": { "label": "Posted Date", "format": "date" },
+          "verifiedPurchase": { "label": "Verified", "format": "boolean" },
+          "usefulCount": { "label": "Useful", "format": "number" },
+          "companyReply": { "label": "Company Reply", "format": "text" },
+          "companyReplyDate": { "label": "Reply Date", "format": "date" },
+          "reviewUrl": { "label": "Review URL", "format": "link" },
+          "reviewId": { "label": "Review ID", "format": "text" },
+          "scrapedAt": { "label": "Scraped At", "format": "date" }
+        }
+      }
+    }
+  }
+}
