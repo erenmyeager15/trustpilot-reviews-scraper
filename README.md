@@ -1,6 +1,6 @@
 # Trustpilot Reviews Scraper
 
-Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains such as `nike.com` or full Trustpilot review URLs and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
+Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains or Trustpilot review slugs such as `nike.com`, or full Trustpilot review URLs, and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
 
 The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves review records to the default dataset and saves company-level summary data to a separate `companies` dataset when a review is successfully collected.
 
@@ -83,7 +83,7 @@ Review text, ratings, counts, and reply data can change when Trustpilot updates 
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `companyNames` | array | `["nike.com"]` | Company domains or names. The Actor builds the Trustpilot review URL automatically. |
+| `companyNames` | array | `["nike.com"]` | Company domains or Trustpilot review slugs. The Actor builds the review URL automatically. |
 | `companyUrls` | array | `[]` | Full Trustpilot company review URLs. |
 | `maxReviewsPerCompany` | integer | `1` | Maximum reviews to save per company. Use `0` only when you intentionally want all available pages. |
 | `sortBy` | string | `most_recent` | `most_recent`, `most_relevant`, or `lowest_rated`. |
@@ -91,7 +91,7 @@ Review text, ratings, counts, and reply data can change when Trustpilot updates 
 | `verifiedOnly` | boolean | `false` | Save only reviews marked verified by Trustpilot. |
 | `proxyConfiguration` | object | Residential Apify Proxy | Proxy settings for browser requests. Residential proxies are recommended. |
 
-Provide at least one company domain/name or one full Trustpilot review URL. Start with `maxReviewsPerCompany: 1` to confirm output and cost before scaling.
+Provide at least one company domain, Trustpilot review slug, or full Trustpilot review URL. Duplicate targets are removed before scraping, and each run accepts up to 50 unique companies. Start with `maxReviewsPerCompany: 1` to confirm output and cost before scaling.
 
 ## Common workflows
 
@@ -118,19 +118,21 @@ This Actor uses Pay Per Event pricing.
 | Event | Price |
 | --- | ---: |
 | Actor start | $0.00005 per GB of memory |
-| Each successfully saved `review-scraped` item | $0.0015 |
+| Each successfully saved `review-scraped` item | $0.001 |
 
-The Actor default is 2 GB of memory, so the startup charge is approximately $0.00010 per run. A one-review sample run is therefore approximately $0.00160 before any applicable platform usage, proxy traffic, or account-level charges.
+The Actor default is 2 GB of memory, so the startup charge is approximately $0.00010 per run. A one-review sample run is therefore approximately $0.00110 before any applicable platform usage, proxy traffic, or account-level charges.
 
-Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events, and the Actor stops accepting more review work when the user's maximum-cost limit is reached.
+Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events. Reaching the user's maximum-cost limit stops further review work cleanly instead of turning a valid partial run into a failure.
 
 ## Limits and reliability
 
 - Trustpilot can change page structure or anti-bot behavior.
 - Residential proxies are recommended for reliable browser access.
 - Very large runs can take longer because the Actor paginates public review pages.
+- Each run accepts at most 50 unique companies and 10,000 reviews per company. Use smaller batches for more predictable completion times.
 - Company replies, useful counts, and verification labels are returned only when Trustpilot exposes them on the page.
 - `lowest_rated` uses the one-star filter when no explicit `filterByRating` is provided.
+- A valid company page with no reviews matching the selected filters finishes successfully with an empty default dataset; blocked or unparseable pages still fail visibly.
 - Company summaries are stored in a named dataset, while the default dataset stays review-only.
 
 ## API example

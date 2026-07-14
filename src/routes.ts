@@ -1,17 +1,22 @@
 import { Actor, log } from 'apify';
 import { PlaywrightCrawlingContext } from 'crawlee';
-import { ActorInput, CompanyRecord, ReviewRecord } from './types.js';
+import { ActorInput, CompanyRecord, FilterByRating, ReviewRecord, SortOption } from './types.js';
+import { buildReviewPageUrl, reviewMatchesStarFilter, wasRecordSaved } from './run-config.js';
 
 const REVIEW_SCRAPED_EVENT = 'review-scraped';
 
-let chargedReviewCount = 0;
-let savedCompanyCount = 0;
+let savedReviewCount = 0;
 let spendingLimitReached = false;
+const parsedCompanySlugs = new Set<string>();
+const savedCompanySlugs = new Set<string>();
+const savedReviewIds = new Set<string>();
+const savedReviewCountsBySlug = new Map<string, number>();
 
 export function getScrapeState() {
     return {
-        chargedReviewCount,
-        savedCompanyCount,
+        savedReviewCount,
+        savedCompanyCount: savedCompanySlugs.size,
+        parsedCompanyCount: parsedCompanySlugs.size,
         spendingLimitReached,
     };
 }
@@ -31,29 +36,6 @@ function toStr(v: unknown): string | null {
         return t.length > 0 ? t : null;
     }
     return null;
-}
-
-function effectiveStarFilter(sort: string, filter: string): string {
-    if (filter && filter !== 'all') return filter;
-    return sort === 'lowest_rated' ? '1' : 'all';
-}
-
-/** Build a Trustpilot review-page URL with sort / star filter / pagination. */
-export function buildReviewPageUrl(slug: string, sort: string, filter: string, pageNum: number): string {
-    const params = new URLSearchParams();
-    if (sort === 'most_recent') params.set('sort', 'recency');
-    const starFilter = effectiveStarFilter(sort, filter);
-    if (starFilter !== 'all') params.set('stars', starFilter);
-    if (pageNum > 1) params.set('page', String(pageNum));
-    const qs = params.toString();
-    return `https://www.trustpilot.com/review/${slug}${qs ? `?${qs}` : ''}`;
-}
-
-function reviewMatchesStarFilter(review: ReviewRecord, sort: string, filter: string): boolean {
-    const starFilter = effectiveStarFilter(sort, filter);
-    if (starFilter === 'all') return true;
-    const expected = Number(starFilter);
-    return review.starRating !== null && Number.isFinite(review.starRating) && Math.round(review.starRating) === expected;
 }
 
 /** Pull the parsed __NEXT_DATA__ payload out of the rendered page. */
@@ -139,8 +121,9 @@ function parseCompany(bu: any, slug: string, url: string, ratings: any): Company
     };
 }
 
-function parseReview(r: any, companyName: string, companyUrl: string): ReviewRecord {
-    const id = toStr(r?.id) || `unknown-${Math.random().toString(36).slice(2, 11)}`;
+export function parseReview(r: any, companyName: string, companyUrl: string): ReviewRecord | null {
+    const id = toStr(r?.id);
+    if (!id) return null;
     return {
         reviewId: id,
         companyName,
@@ -169,13 +152,14 @@ export function buildCompanyHandler(input: ActorInput) {
         const { slug, companyName, sort, filter } = request.userData as {
             slug: string;
             companyName: string;
-            sort: string;
-            filter: string;
+            sort: SortOption;
+            filter: FilterByRating;
         };
 
         if (spendingLimitReached) {
             request.noRetry = true;
-            throw new Error('Charge limit already reached; stopping before scraping another Trustpilot company.');
+            log.warning(`Skipping ${request.url} because the run charge limit has already been reached.`);
+            return;
         }
 
         const firstData = await readNextData(page);
@@ -189,8 +173,10 @@ export function buildCompanyHandler(input: ActorInput) {
         const bu = pp.businessUnit ?? pp.business ?? {};
 
         if (!bu || Object.keys(bu).length === 0) {
-            log.warning(`No businessUnit found for "${slug}". pageProps keys: ${Object.keys(pp).join(', ')}`);
+            request.noRetry = true;
+            throw new Error(`No Trustpilot company page was found for "${slug}". pageProps keys: ${Object.keys(pp).join(', ') || 'none'}.`);
         }
+        parsedCompanySlugs.add(slug);
 
         const companyRecord = parseCompany(bu, slug, request.url, pp?.filters?.reviewStatistics?.ratings);
         const resolvedName = companyRecord.companyName || companyName || slug;
@@ -201,10 +187,10 @@ export function buildCompanyHandler(input: ActorInput) {
             toNum(pp?.filters?.pagination?.totalPages) ?? toNum(pp?.pagination?.totalPages) ?? null;
 
         const seen = new Set<string>();
-        let reviewCount = 0;
+        let reviewCount = savedReviewCountsBySlug.get(slug) ?? 0;
         let pageNum = 1;
         let currentData: any = firstData;
-        let companySummarySaved = false;
+        let companySummarySaved = savedCompanySlugs.has(slug);
 
         while (reviewCount < maxReviews) {
             const pageProps = currentData?.props?.pageProps ?? {};
@@ -215,28 +201,40 @@ export function buildCompanyHandler(input: ActorInput) {
                 break;
             }
 
+            let parseableRowsOnPage = 0;
             for (const raw of reviews) {
                 const review = parseReview(raw, resolvedName, request.url);
-                if (seen.has(review.reviewId)) continue;
+                if (!review) {
+                    log.warning(`Skipping a malformed Trustpilot review without a stable review ID for ${resolvedName}.`);
+                    continue;
+                }
+                parseableRowsOnPage++;
+                if (seen.has(review.reviewId) || savedReviewIds.has(review.reviewId)) continue;
                 seen.add(review.reviewId);
 
                 if (!reviewMatchesStarFilter(review, sort, filter)) continue;
                 if (verifiedOnly && !review.verifiedPurchase) continue;
 
                 const charge = await Actor.pushData(review, REVIEW_SCRAPED_EVENT);
-                const recordWasSaved = charge.chargedCount > 0 || !charge.eventChargeLimitReached;
+                const recordWasSaved = wasRecordSaved(charge);
 
                 if (recordWasSaved) {
-                    chargedReviewCount++;
+                    savedReviewIds.add(review.reviewId);
+                    savedReviewCount++;
                     reviewCount++;
+                    savedReviewCountsBySlug.set(slug, reviewCount);
 
                     if (!companySummarySaved) {
                         // Company summaries go to a dedicated "companies" dataset after the first
                         // saved review so blocked or empty runs do not create zero-revenue output.
-                        const companyDataset = await Actor.openDataset('companies');
-                        await companyDataset.pushData(companyRecord);
-                        savedCompanyCount++;
-                        companySummarySaved = true;
+                        try {
+                            const companyDataset = await Actor.openDataset('companies');
+                            await companyDataset.pushData(companyRecord);
+                            savedCompanySlugs.add(slug);
+                            companySummarySaved = true;
+                        } catch (error) {
+                            log.warning(`Review saved, but the optional company summary could not be saved for ${resolvedName}: ${(error as Error).message}`);
+                        }
                     }
                 }
 
@@ -248,6 +246,11 @@ export function buildCompanyHandler(input: ActorInput) {
                 }
 
                 if (reviewCount >= maxReviews) break;
+            }
+
+            if (reviews.length > 0 && parseableRowsOnPage === 0) {
+                request.noRetry = true;
+                throw new Error(`Trustpilot returned review rows without stable IDs for ${resolvedName}; the page layout may have changed.`);
             }
 
             log.info(`Scraped ${reviewCount}/${maxReviews === Number.POSITIVE_INFINITY ? 'all' : maxReviews} reviews for ${resolvedName} (page ${pageNum})`);

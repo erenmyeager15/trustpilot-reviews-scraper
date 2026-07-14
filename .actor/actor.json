@@ -31,7 +31,7 @@
                 "review-scraped": {
                     "eventTitle": "Review Scraped",
                     "eventDescription": "Charged for each Trustpilot review successfully extracted and saved to the dataset.",
-                    "eventPriceUsd": 0.0015,
+                    "eventPriceUsd": 0.001,
                     "isPrimaryEvent": true,
                     "isOneTimeEvent": false
                 }

@@ -18,13 +18,14 @@ export type FilterByRating = 'all' | '1' | '2' | '3' | '4' | '5';
 export interface ActorInput {
     companyNames?: string[];
     companyUrls?: string[];
-    maxReviewsPerCompany: number;
-    sortBy: SortOption;
-    filterByRating: FilterByRating;
-    verifiedOnly: boolean;
+    maxReviewsPerCompany?: number;
+    sortBy?: SortOption;
+    filterByRating?: FilterByRating;
+    verifiedOnly?: boolean;
     proxyConfiguration?: {
         useApifyProxy: boolean;
         apifyProxyGroups?: string[];
+        apifyProxyCountry?: string;
         proxyUrls?: string[];
     };
 }

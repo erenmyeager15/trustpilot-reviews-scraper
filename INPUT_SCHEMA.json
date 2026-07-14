@@ -5,19 +5,21 @@
     "schemaVersion": 1,
     "properties": {
         "companyNames": {
-            "title": "Company Domains or Names",
-            "description": "Company domains or names to scrape, for example \"nike.com\" or \"spotify.com\". The Actor builds the Trustpilot URL automatically.",
+            "title": "Company Domains or Trustpilot Slugs",
+            "description": "Company domains or Trustpilot review slugs to scrape, for example \"nike.com\" or \"spotify.com\". The Actor builds the Trustpilot URL automatically.",
             "type": "array",
             "editor": "stringList",
             "prefill": ["nike.com"],
-            "default": ["nike.com"]
+            "default": ["nike.com"],
+            "maxItems": 50
         },
         "companyUrls": {
             "title": "Trustpilot Company URLs",
             "description": "Full Trustpilot company review URLs, for example \"https://www.trustpilot.com/review/nike.com\".",
             "type": "array",
             "editor": "stringList",
-            "default": []
+            "default": [],
+            "maxItems": 50
         },
         "maxReviewsPerCompany": {
             "title": "Max Reviews Per Company",
@@ -26,7 +28,7 @@
             "editor": "number",
             "default": 1,
             "minimum": 0,
-            "maximum": 100000
+            "maximum": 10000
         },
         "sortBy": {
             "title": "Sort Reviews By",

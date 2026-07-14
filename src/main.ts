@@ -1,56 +1,37 @@
 import { Actor, log } from 'apify';
 import { PlaywrightCrawler } from 'crawlee';
 import { ActorInput } from './types.js';
-import { buildCompanyHandler, buildReviewPageUrl, getScrapeState } from './routes.js';
-
-/** Derive the Trustpilot business-unit slug from a name, domain, or full URL. */
-function slugFromInput(input: string): string {
-    const cleaned = input.toLowerCase().trim();
-    if (cleaned.startsWith('http')) {
-        const match = cleaned.match(/trustpilot\.com\/review\/([^/?#]+)/);
-        if (match) return match[1];
-    }
-    return cleaned.replace(/^www\./, '').replace(/\/+$/, '');
-}
+import { buildCompanyHandler, getScrapeState } from './routes.js';
+import { buildReviewPageUrl, classifyRunOutcome, collectCompanySlugs, normalizeInput } from './run-config.js';
 
 Actor.main(async () => {
     const input = (await Actor.getInput<ActorInput>()) ?? ({} as ActorInput);
 
-    const companyNames = input.companyNames ?? [];
-    const companyUrls = input.companyUrls ?? [];
-    const allTargets = [...companyUrls, ...companyNames].filter((t) => typeof t === 'string' && t.trim().length > 0);
+    const normalizedInput = normalizeInput(input);
+    const companySlugs = collectCompanySlugs(input.companyNames, input.companyUrls);
+    const sort = normalizedInput.sortBy!;
+    const filter = normalizedInput.filterByRating!;
 
-    if (allTargets.length === 0) {
-        log.error('No company names or URLs provided. Add at least one company domain (e.g. "netflix.com") or a Trustpilot review URL.');
-        return;
-    }
-
-    const sort = input.sortBy || 'most_recent';
-    const filter = input.filterByRating || 'all';
-
-    log.info(`Starting Trustpilot scrape for ${allTargets.length} company(ies) | sort=${sort} | filter=${filter}`);
+    log.info(`Starting Trustpilot scrape for ${companySlugs.length} unique company(ies) | sort=${sort} | filter=${filter}`);
 
     // Trustpilot is protected by an AWS WAF JS challenge, so residential proxies + a real
     // browser are required. Default to Apify residential proxies when nothing is provided.
     const proxyConfig = await Actor.createProxyConfiguration(
-        input.proxyConfiguration ?? { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+        normalizedInput.proxyConfiguration ?? { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
     );
 
-    const startRequests = allTargets.map((target) => {
-        const slug = slugFromInput(target);
-        return {
-            url: buildReviewPageUrl(slug, sort, filter, 1),
-            userData: {
-                slug,
-                companyName: slug,
-                sort,
-                filter,
-                label: 'company',
-            },
-        };
-    });
+    const startRequests = companySlugs.map((slug) => ({
+        url: buildReviewPageUrl(slug, sort, filter, 1),
+        userData: {
+            slug,
+            companyName: slug,
+            sort,
+            filter,
+            label: 'company',
+        },
+    }));
 
-    const handler = buildCompanyHandler(input);
+    const handler = buildCompanyHandler(normalizedInput);
     let failedRequestCount = 0;
 
     const crawler = new PlaywrightCrawler({
@@ -77,7 +58,8 @@ Actor.main(async () => {
         requestHandler: async (context) => {
             if (getScrapeState().spendingLimitReached) {
                 context.request.noRetry = true;
-                throw new Error('Charge limit reached; stopping remaining Trustpilot requests.');
+                log.warning(`Skipping ${context.request.url} because the run charge limit has been reached.`);
+                return;
             }
 
             await handler(context);
@@ -92,13 +74,12 @@ Actor.main(async () => {
     await crawler.run(startRequests);
 
     const scrapeState = getScrapeState();
-    if (scrapeState.spendingLimitReached) {
-        throw new Error('Trustpilot crawl stopped because the charge limit was reached.');
+    const outcome = classifyRunOutcome(scrapeState, failedRequestCount);
+    if (outcome === 'budget-limited') {
+        log.warning(`Run stopped cleanly at the user's charge limit after saving ${scrapeState.savedReviewCount} review(s).`);
+    } else if (outcome === 'empty') {
+        log.warning('Valid Trustpilot company pages were parsed, but no reviews matched the selected filters. The empty result is legitimate.');
     }
 
-    if (scrapeState.chargedReviewCount === 0) {
-        throw new Error(`No Trustpilot reviews were charged and saved. Failed requests: ${failedRequestCount}.`);
-    }
-
-    log.info(`Crawler finished. Charged reviews: ${scrapeState.chargedReviewCount}. Company summaries saved: ${scrapeState.savedCompanyCount}. Failed requests: ${failedRequestCount}.`);
+    log.info(`Crawler finished. Reviews saved: ${scrapeState.savedReviewCount}. Companies parsed: ${scrapeState.parsedCompanyCount}. Company summaries saved: ${scrapeState.savedCompanyCount}. Failed requests: ${failedRequestCount}.`);
 });
