@@ -120,7 +120,7 @@ This Actor uses Pay Per Event pricing.
 | Actor start | $0.00005 per GB of memory |
 | Each successfully saved `review-scraped` item | $0.001 |
 
-The Actor default is 2 GB of memory, so the startup charge is approximately $0.00010 per run. A one-review sample run is therefore approximately $0.00110 before any applicable platform usage, proxy traffic, or account-level charges.
+The Actor default is 1 GB of memory, so the startup charge is approximately $0.00005 per run. A one-review sample run is therefore approximately $0.00105 before any applicable platform usage, proxy traffic, or account-level charges.
 
 Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events. Reaching the user's maximum-cost limit stops further review work cleanly instead of turning a valid partial run into a failure.
 
@@ -128,6 +128,7 @@ Reviews are charged only when they are successfully saved to the dataset. Blocke
 
 - Trustpilot can change page structure or anti-bot behavior.
 - Residential proxies are recommended for reliable browser access.
+- Image, media, and font downloads are blocked, concurrency is bounded, and the cloud default is 1 GB to reduce platform and proxy costs without blocking Trustpilot's challenge scripts or JSON data.
 - Very large runs can take longer because the Actor paginates public review pages.
 - Each run accepts at most 50 unique companies and 10,000 reviews per company. Use smaller batches for more predictable completion times.
 - Company replies, useful counts, and verification labels are returned only when Trustpilot exposes them on the page.

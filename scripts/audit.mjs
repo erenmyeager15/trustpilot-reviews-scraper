@@ -67,7 +67,7 @@ const source = readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8'
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
 
 assert.equal(actor.pricingInfo.pricingPerEvent.actorChargeEvents['review-scraped'].eventPriceUsd, 0.001);
-assert.equal(actor.defaultRunOptions.memoryMbytes, 2048);
+assert.equal(actor.defaultRunOptions.memoryMbytes, 1024);
 assert.equal(actor.defaultRunOptions.timeoutSecs, 900);
 assert.equal(schema.properties.companyNames.maxItems, 50);
 assert.equal(schema.properties.companyUrls.maxItems, 50);
@@ -76,6 +76,10 @@ assert.match(source, /savedReviewIds/);
 assert.match(source, /review rows without stable IDs/);
 assert.doesNotMatch(source, /Math\.random/);
 assert.match(main, /classifyRunOutcome/);
+assert.match(main, /maxConcurrency: 2/);
+assert.match(main, /resourceType === 'image'/);
+assert.match(main, /resourceType === 'media'/);
+assert.match(main, /resourceType === 'font'/);
 assert.doesNotMatch(main, /Trustpilot crawl stopped because the charge limit was reached/);
 
 console.log('Trustpilot audit checks passed.');

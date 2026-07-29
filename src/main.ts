@@ -36,7 +36,7 @@ Actor.main(async () => {
 
     const crawler = new PlaywrightCrawler({
         proxyConfiguration: proxyConfig,
-        maxConcurrency: 3,
+        maxConcurrency: 2,
         minConcurrency: 1,
         requestHandlerTimeoutSecs: 180,
         navigationTimeoutSecs: 90,
@@ -55,6 +55,18 @@ Actor.main(async () => {
         browserPoolOptions: {
             useFingerprints: true,
         },
+        preNavigationHooks: [
+            async ({ page }) => {
+                await page.route('**/*', async (route) => {
+                    const resourceType = route.request().resourceType();
+                    if (resourceType === 'image' || resourceType === 'media' || resourceType === 'font') {
+                        await route.abort();
+                        return;
+                    }
+                    await route.continue();
+                });
+            },
+        ],
         requestHandler: async (context) => {
             if (getScrapeState().spendingLimitReached) {
                 context.request.noRetry = true;
