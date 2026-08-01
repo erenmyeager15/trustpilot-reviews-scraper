@@ -60,20 +60,20 @@ This shortened sample comes from a successful public Actor run:
 
 ```json
 {
-  "reviewId": "6a37bb580ae7470586456bb9",
-  "companyName": "Nike",
-  "companyUrl": "https://www.trustpilot.com/review/nike.com?sort=recency",
-  "starRating": 1,
-  "reviewTitle": "I am extremely disappointed with my...",
-  "reviewBody": "I am extremely disappointed with my experience with Nike...",
-  "dateOfExperience": "2026-06-21T00:00:00.000Z",
-  "reviewPostedDate": "2026-06-21T12:22:16.000Z",
+  "reviewId": "6a2935848b5c27d1ace126be",
+  "companyName": "Netflix",
+  "companyUrl": "https://www.trustpilot.com/review/netflix.com",
+  "starRating": 5,
+  "reviewTitle": "Legends",
+  "reviewBody": "Legends - just finished the series and WOW! Great true story and amazing acting!",
+  "dateOfExperience": "2026-06-10T00:00:00.000Z",
+  "reviewPostedDate": "2026-06-10T11:59:32.000Z",
   "verifiedPurchase": false,
   "usefulCount": 0,
   "companyReply": null,
   "companyReplyDate": null,
-  "reviewUrl": "https://www.trustpilot.com/reviews/6a37bb580ae7470586456bb9",
-  "scrapedAt": "2026-06-21T18:25:13.289Z"
+  "reviewUrl": "https://www.trustpilot.com/reviews/6a2935848b5c27d1ace126be",
+  "scrapedAt": "2026-06-10T17:49:53.800Z"
 }
 ```
 
