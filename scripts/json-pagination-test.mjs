@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
-import { buildJsonPageUrl, validateJsonPage, tryJsonPage } from '../dist/json-pagination.js';
+import { buildJsonPageUrl, jsonPageSkipReason, validateJsonPage, tryJsonPage } from '../dist/json-pagination.js';
 const first = { buildId: 'build-1', props: { pageProps: { businessUnit: { id: 'company1' } } } };
 const next = 'https://www.trustpilot.com/review/nike.com?sort=recency&stars=4&page=2';
 assert.equal(buildJsonPageUrl(first, next), 'https://www.trustpilot.com/_next/data/build-1/review/nike.com.json?sort=recency&stars=4&page=2');
 assert.equal(buildJsonPageUrl({}, next), null);
+assert.match(buildJsonPageUrl({ ...first, buildId: '2.123.0', locale: null }, next), /\/2\.123\.0\/review\//);
+assert.equal(jsonPageSkipReason({ ...first, buildId: '2.123.0' }, next), null);
+assert.equal(jsonPageSkipReason({}, next), 'missing_build_id');
+assert.equal(jsonPageSkipReason({ ...first, buildId: '..' }, next), 'unsupported_build_id');
+assert.equal(jsonPageSkipReason({ ...first, locale: 42 }, next), 'unsupported_locale');
+assert.equal(buildJsonPageUrl(first, 'malformed'), null);
 assert.equal(buildJsonPageUrl({ ...first, buildId: '../bad' }, next), null);
 assert.equal(buildJsonPageUrl(first, 'https://example.com/review/nike.com'), null);
 assert.match(buildJsonPageUrl({ ...first, locale: 'en-US' }, next), /\/en-US\/review\//);

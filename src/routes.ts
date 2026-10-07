@@ -2,7 +2,7 @@ import { Actor, log } from 'apify';
 import { PlaywrightCrawlingContext } from 'crawlee';
 import { ActorInput, CompanyRecord, FilterByRating, ReviewRecord, SortOption } from './types.js';
 import { buildReviewPageUrl, reviewMatchesStarFilter, wasRecordSaved } from './run-config.js';
-import { buildJsonPageUrl, tryJsonPage } from './json-pagination.js';
+import { jsonPageSkipReason, tryJsonPage } from './json-pagination.js';
 
 const REVIEW_SCRAPED_EVENT = 'review-scraped';
 
@@ -16,6 +16,7 @@ const companySummaries = new Map<string, CompanyRecord>();
 const coverageWarnings = new Set<string>();
 let jsonPageAttempts = 0;
 let jsonPagesAccepted = 0;
+const jsonPageSkips = new Map<string, number>();
 
 export function getScrapeState() {
     return {
@@ -26,6 +27,7 @@ export function getScrapeState() {
         coverageWarnings: [...coverageWarnings],
         jsonPageAttempts,
         jsonPagesAccepted,
+        jsonPageSkips: Object.fromEntries(jsonPageSkips),
     };
 }
 
@@ -209,7 +211,12 @@ export function buildCompanyHandler(input: ActorInput) {
         let pageNum = 1;
         let currentData: any = firstData;
         let companySummarySaved = savedCompanySlugs.has(slug);
-        let jsonEnabled = !!buildJsonPageUrl(firstData, request.url);
+        const jsonSkip = jsonPageSkipReason(firstData, request.url);
+        if (jsonSkip) {
+            jsonPageSkips.set(jsonSkip, (jsonPageSkips.get(jsonSkip) ?? 0) + 1);
+            log.info('JSON pagination unavailable from this page metadata', { reason: jsonSkip });
+        }
+        let jsonEnabled = jsonSkip === null;
 
         while (reviewCount < maxReviews) {
             const pageProps = currentData?.props?.pageProps ?? {};
@@ -254,8 +261,7 @@ export function buildCompanyHandler(input: ActorInput) {
                     savedReviewCountsBySlug.set(slug, reviewCount);
 
                     if (!companySummarySaved) {
-                        // Company summaries go to a dedicated "companies" dataset after the first
-                        // saved review so blocked or empty runs do not create zero-revenue output.
+                        // Save company summaries in the current run after its first saved review.
                         try {
                             companySummaries.set(slug, companyRecord);
                             await Actor.setValue('COMPANIES', [...companySummaries.values()]);

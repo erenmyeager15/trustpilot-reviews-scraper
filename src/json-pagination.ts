@@ -2,13 +2,22 @@ import type { Page } from 'playwright';
 
 export function buildJsonPageUrl(firstData: any, nextUrl: string): string | null {
     const build = firstData?.buildId;
-    if (typeof build !== 'string' || !/^[a-zA-Z0-9_-]{1,200}$/.test(build)) return null;
-    const url = new URL(nextUrl);
+    if (typeof build !== 'string' || !/^[a-zA-Z0-9_.-]{1,200}$/.test(build) || build === '.' || build === '..') return null;
+    let url: URL;
+    try { url = new URL(nextUrl); } catch { return null; }
     if (url.origin !== 'https://www.trustpilot.com' || !/^\/review\/[^/]+$/.test(url.pathname)) return null;
     const locale = firstData?.locale;
-    if (locale !== undefined && (typeof locale !== 'string' || !/^[a-zA-Z-]{2,15}$/.test(locale))) return null;
+    if (locale != null && (typeof locale !== 'string' || !/^[a-zA-Z-]{2,15}$/.test(locale))) return null;
     url.pathname = `/_next/data/${build}${locale ? `/${locale}` : ''}${url.pathname}.json`;
     return url.toString();
+}
+
+export function jsonPageSkipReason(firstData: any, nextUrl: string): string | null {
+    if (buildJsonPageUrl(firstData, nextUrl)) return null;
+    if (typeof firstData?.buildId !== 'string' || !firstData.buildId) return 'missing_build_id';
+    if (!/^[a-zA-Z0-9_.-]{1,200}$/.test(firstData.buildId) || ['.', '..'].includes(firstData.buildId)) return 'unsupported_build_id';
+    if (firstData.locale != null && (typeof firstData.locale !== 'string' || !/^[a-zA-Z-]{2,15}$/.test(firstData.locale))) return 'unsupported_locale';
+    return 'unsupported_page_url';
 }
 
 export function validateJsonPage(payload: any, firstData: any, seenIds: Set<string>): any | null {
