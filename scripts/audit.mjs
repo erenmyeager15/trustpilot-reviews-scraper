@@ -116,6 +116,26 @@ try {
     assert.ok(getScrapeState().coverageWarnings.length > 0);
     delete data.props.pageProps.reviews;
     await assert.rejects(buildCompanyHandler({ maxReviewsPerCompany: 100 })(context), /collection is missing/);
+    for (const useJson of [true, false]) {
+        let gotos = 0;
+        let probes = 0;
+        const slug = useJson ? 'json-fixture.com' : 'fallback-fixture.com';
+        const initial = { buildId: 'fixture-build', props: { pageProps: { businessUnit: { id: slug, displayName: slug }, reviews: [{ id: `${slug}-1`, rating: 4 }] } } };
+        const second = { pageProps: { businessUnit: { id: slug, displayName: slug }, reviews: [{ id: `${slug}-2`, rating: 5, reply: { message: 'Thank you' } }] } };
+        await buildCompanyHandler({ maxReviewsPerCompany: 2 })({
+            request: { url: `https://www.trustpilot.com/review/${slug}`, userData: { slug, sort: 'most_recent', filter: 'all' } },
+            page: {
+                waitForFunction: async () => {},
+                evaluate: async (_fn, target) => {
+                    if (target) { probes++; return useJson ? second : null; }
+                    return JSON.stringify(gotos ? { ...initial, props: { pageProps: second.pageProps } } : initial);
+                },
+                goto: async () => { gotos++; },
+            },
+        });
+        assert.equal(probes, 1);
+        assert.equal(gotos, useJson ? 0 : 1);
+    }
 } finally {
     Actor.pushData = originalPush;
     Actor.setValue = originalSet;

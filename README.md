@@ -163,6 +163,8 @@ The configured default is 1024 MB with one browser page processed at a time, dow
 
 The collector skips images, fonts, stylesheets, known analytics hosts and Trustpilot's Next.js UI scripts, while keeping document requests and challenge traffic. It reads the embedded review JSON rather than relying on the interactive page UI. This traffic reduction requires cloud validation; it is not a guarantee of lower cost or successful access on every run.
 
+For additional pages, the candidate implementation derives a JSON pagination URL from the first page's build metadata and retains the requested filters. It uses the existing browser session, validates company identity and review IDs, and falls back to normal navigation after one unsuccessful JSON attempt per company. `OUTPUT.jsonPageAttempts` and `OUTPUT.jsonPagesAccepted` expose whether this path worked. Live availability and savings remain unverified; the initial browser page is still required, so this does not solve one-review run costs.
+
 Rows include `replyStatus`, `replyLatencyHours`, and `reviewUpdatedDate`. Reply latency compares the source's review publication and reply publication timestamps; missing or reversed timestamps produce `null`. It is not a measurement of the company's first response if the source has replaced or edited a reply.
 
 Company summaries are stored in the current run's `COMPANIES` key, not a shared named dataset. The `OUTPUT` key reports failed requests and coverage warnings. Pagination stops at repeated pages, 100 pages per company, or a per-company processing safety limit; a partial result is not an exhaustive export.

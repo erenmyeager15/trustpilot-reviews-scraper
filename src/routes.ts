@@ -2,6 +2,7 @@ import { Actor, log } from 'apify';
 import { PlaywrightCrawlingContext } from 'crawlee';
 import { ActorInput, CompanyRecord, FilterByRating, ReviewRecord, SortOption } from './types.js';
 import { buildReviewPageUrl, reviewMatchesStarFilter, wasRecordSaved } from './run-config.js';
+import { buildJsonPageUrl, tryJsonPage } from './json-pagination.js';
 
 const REVIEW_SCRAPED_EVENT = 'review-scraped';
 
@@ -13,6 +14,8 @@ const savedReviewIds = new Set<string>();
 const savedReviewCountsBySlug = new Map<string, number>();
 const companySummaries = new Map<string, CompanyRecord>();
 const coverageWarnings = new Set<string>();
+let jsonPageAttempts = 0;
+let jsonPagesAccepted = 0;
 
 export function getScrapeState() {
     return {
@@ -21,6 +24,8 @@ export function getScrapeState() {
         parsedCompanyCount: parsedCompanySlugs.size,
         spendingLimitReached,
         coverageWarnings: [...coverageWarnings],
+        jsonPageAttempts,
+        jsonPagesAccepted,
     };
 }
 
@@ -204,6 +209,7 @@ export function buildCompanyHandler(input: ActorInput) {
         let pageNum = 1;
         let currentData: any = firstData;
         let companySummarySaved = savedCompanySlugs.has(slug);
+        let jsonEnabled = !!buildJsonPageUrl(firstData, request.url);
 
         while (reviewCount < maxReviews) {
             const pageProps = currentData?.props?.pageProps ?? {};
@@ -288,6 +294,17 @@ export function buildCompanyHandler(input: ActorInput) {
 
             pageNum++;
             const nextUrl = buildReviewPageUrl(slug, sort, filter, pageNum);
+            if (jsonEnabled) {
+                jsonPageAttempts++;
+                const jsonData = await tryJsonPage(page, firstData, nextUrl, seen);
+                if (jsonData) {
+                    jsonPagesAccepted++;
+                    currentData = jsonData;
+                    continue;
+                }
+                // One unsuccessful probe per company, then use the established path.
+                jsonEnabled = false;
+            }
             try {
                 await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
             } catch (e) {

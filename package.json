@@ -9,7 +9,7 @@
         "build": "tsc",
         "dev": "tsc -w",
         "lint": "tsc --noEmit",
-        "test": "npm run build && node scripts/audit.mjs && node scripts/traffic-test.mjs"
+        "test": "npm run build && node scripts/audit.mjs && node scripts/traffic-test.mjs && node scripts/json-pagination-test.mjs"
     },
     "dependencies": {
         "apify": "^3.1.0",
