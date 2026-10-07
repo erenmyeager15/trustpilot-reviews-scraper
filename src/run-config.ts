@@ -147,8 +147,13 @@ export function classifyRunOutcome(
     state: { parsedCompanyCount: number; savedReviewCount: number; spendingLimitReached: boolean },
     failedRequestCount: number,
 ): RunOutcome {
+    // A pre-navigation budget stop is legitimate even when no company was fetched.
+    if (state.spendingLimitReached && failedRequestCount === 0) return 'budget-limited';
     if (state.parsedCompanyCount === 0) {
         throw new Error(`No valid Trustpilot company page could be parsed. Failed requests: ${failedRequestCount}.`);
+    }
+    if (state.savedReviewCount === 0 && failedRequestCount > 0) {
+        throw new Error(`No reviews were saved and ${failedRequestCount} company request(s) failed; this is not a verified empty result.`);
     }
     if (state.spendingLimitReached) return 'budget-limited';
     if (state.savedReviewCount === 0) return 'empty';

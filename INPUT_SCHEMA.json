@@ -1,12 +1,12 @@
 {
     "title": "Trustpilot Reviews Scraper: Public Reviews & Ratings",
-    "description": "Scrape public Trustpilot reviews and company rating summaries from company domains or full Trustpilot review URLs.",
+    "description": "Public Trustpilot reviews and company rating summaries. Planned release pricing: $0.04 per unique company check per run + $0.001 per saved review and the small Actor-start charge. Check the live Pricing tab before running.",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
         "companyNames": {
             "title": "Company Domains or Trustpilot Slugs",
-            "description": "Company domains or Trustpilot review slugs to scrape, for example \"nike.com\" or \"spotify.com\". The Actor builds the Trustpilot URL automatically.",
+            "description": "Company domains or Trustpilot review slugs, for example \"nike.com\". The planned release adds a $0.04 check fee per unique company per run, including empty or blocked attempts. Duplicate inputs do not add another company fee.",
             "type": "array",
             "editor": "stringList",
             "prefill": ["nike.com"],
@@ -23,7 +23,7 @@
         },
         "maxReviewsPerCompany": {
             "title": "Max Reviews Per Company",
-            "description": "Maximum number of reviews to save per company. Start with 1 for a cheap sample. Set to 0 only when you intentionally want all available pages.",
+            "description": "Maximum reviews to save per company. The planned $0.04 company-check fee applies even if only 1 review is requested. At 1 GB, one company with 1 review is $0.04105; 25 reviews are $0.06505. Set 0 for all available pages, subject to safety limits.",
             "type": "integer",
             "editor": "number",
             "default": 1,

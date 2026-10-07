@@ -1,9 +1,10 @@
 import { Actor, log } from 'apify';
-import { PlaywrightCrawler } from 'crawlee';
+import { NonRetryableError, PlaywrightCrawler } from 'crawlee';
 import { installTrafficPolicy } from './traffic-policy.js';
 import { ActorInput } from './types.js';
-import { buildCompanyHandler, getScrapeState } from './routes.js';
+import { buildCompanyHandler, getScrapeState, markSpendingLimitReached } from './routes.js';
 import { buildReviewPageUrl, classifyRunOutcome, collectCompanySlugs, normalizeInput } from './run-config.js';
+import { CompanyCheckBilling, COMPANY_CHECK_EVENT, CompanyCheckRecord } from './billing.js';
 
 Actor.main(async () => {
     const input = (await Actor.getInput<ActorInput>()) ?? ({} as ActorInput);
@@ -14,6 +15,40 @@ Actor.main(async () => {
     const filter = normalizedInput.filterByRating!;
 
     log.info(`Starting Trustpilot scrape for ${companySlugs.length} unique company(ies) | sort=${sort} | filter=${filter}`);
+
+    const manager = Actor.getChargingManager();
+    const billing = new CompanyCheckBilling({
+        runId: Actor.getEnv().actorRunId ?? `local-${Date.now()}`,
+        pricing: () => manager.getPricingInfo(),
+        chargedCount: (event) => manager.getChargedEventCount(event),
+        canCharge: (event) => manager.calculateMaxEventChargeCountWithinLimit(event),
+        chargeCompany: () => Actor.charge({ eventName: COMPANY_CHECK_EVENT, count: 1 }),
+        persist: (records) => Actor.setValue('COMPANY_CHECKS', records),
+    }, (await Actor.getValue<Record<string, CompanyCheckRecord>>('COMPANY_CHECKS')) ?? {});
+    log.info('Active run pricing', billing.getSummary());
+
+    const finishRun = async (failedRequestCount: number) => {
+        const scrapeState = getScrapeState();
+        await Actor.setValue('OUTPUT', { ...scrapeState, failedRequestCount,
+            billing: billing.getSummary(),
+            partial: failedRequestCount > 0 || scrapeState.coverageWarnings.length > 0,
+            companySummariesKey: 'COMPANIES',
+        });
+        const outcome = classifyRunOutcome(scrapeState, failedRequestCount);
+        if (outcome === 'budget-limited') {
+            log.warning(`Run stopped cleanly at the user's charge limit after saving ${scrapeState.savedReviewCount} review(s).`);
+        } else if (outcome === 'empty') {
+            log.warning('Valid Trustpilot company pages were parsed, but no reviews matched the selected filters. The empty result is legitimate.');
+        }
+        log.info(`Crawler finished. Reviews saved: ${scrapeState.savedReviewCount}. Companies parsed: ${scrapeState.parsedCompanyCount}. Company summaries saved: ${scrapeState.savedCompanyCount}. Failed requests: ${failedRequestCount}.`);
+    };
+
+    // Avoid browser startup cost as well as proxy traffic for an unfunded run.
+    if (!billing.canStartCompany(companySlugs[0])) {
+        markSpendingLimitReached();
+        await finishRun(0);
+        return;
+    }
 
     // Trustpilot is protected by an AWS WAF JS challenge, so residential proxies + a real
     // browser are required. Default to Apify residential proxies when nothing is provided.
@@ -32,7 +67,7 @@ Actor.main(async () => {
         },
     }));
 
-    const handler = buildCompanyHandler(normalizedInput);
+    const handler = buildCompanyHandler(normalizedInput, billing);
     let failedRequestCount = 0;
 
     const crawler = new PlaywrightCrawler({
@@ -57,7 +92,22 @@ Actor.main(async () => {
             useFingerprints: true,
         },
         preNavigationHooks: [
-            async ({ page }) => {
+            async ({ page, request }) => {
+                // This hook runs BEFORE the first navigation and before Residential transfer.
+                if (getScrapeState().spendingLimitReached) {
+                    request.noRetry = true;
+                    request.userData.billingBudgetSkipped = true;
+                    throw new NonRetryableError('Stopped before navigation because the run charge limit was reached.');
+                }
+                let allowed: boolean;
+                try { allowed = await billing.authorize(String(request.userData.slug)); }
+                catch (error) { request.noRetry = true; throw error; }
+                if (!allowed) {
+                    markSpendingLimitReached();
+                    request.noRetry = true;
+                    request.userData.billingBudgetSkipped = true;
+                    throw new NonRetryableError('Budget cannot cover this company check and one review; no page was fetched.');
+                }
                 await installTrafficPolicy(page);
             },
         ],
@@ -71,6 +121,11 @@ Actor.main(async () => {
             await handler(context);
         },
         failedRequestHandler: async ({ request, log: reqLog, error }) => {
+            if (request.userData.billingBudgetSkipped) {
+                reqLog.warning('Stopped company work before navigation at the user spending limit.');
+                await crawler.autoscaledPool?.abort();
+                return;
+            }
             failedRequestCount++;
             const errMsg = error instanceof Error ? error.message : String(error ?? 'Unknown error');
             reqLog.error(`Request ${request.url} failed after all retries: ${errMsg}`);
@@ -78,18 +133,5 @@ Actor.main(async () => {
     });
 
     await crawler.run(startRequests);
-
-    const scrapeState = getScrapeState();
-    await Actor.setValue('OUTPUT', { ...scrapeState, failedRequestCount,
-        partial: failedRequestCount > 0 || scrapeState.coverageWarnings.length > 0,
-        companySummariesKey: 'COMPANIES',
-    });
-    const outcome = classifyRunOutcome(scrapeState, failedRequestCount);
-    if (outcome === 'budget-limited') {
-        log.warning(`Run stopped cleanly at the user's charge limit after saving ${scrapeState.savedReviewCount} review(s).`);
-    } else if (outcome === 'empty') {
-        log.warning('Valid Trustpilot company pages were parsed, but no reviews matched the selected filters. The empty result is legitimate.');
-    }
-
-    log.info(`Crawler finished. Reviews saved: ${scrapeState.savedReviewCount}. Companies parsed: ${scrapeState.parsedCompanyCount}. Company summaries saved: ${scrapeState.savedCompanyCount}. Failed requests: ${failedRequestCount}.`);
+    await finishRun(failedRequestCount);
 });

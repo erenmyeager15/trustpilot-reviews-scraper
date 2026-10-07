@@ -2,7 +2,9 @@
 
 Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains or Trustpilot review slugs such as `nike.com`, or full Trustpilot review URLs, and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
 
-The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves review records to the default dataset and company-level summaries to the current run's `COMPANIES` key when a review is successfully collected.
+Release pricing: **$0.04 per unique company check per run + $1 per 1,000 successfully saved reviews**, plus the small Actor-start charge. This repository describes the candidate release; the Apify Pricing tab is authoritative until that release and its pricing are activated.
+
+The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves reviews to the default dataset, parsed company summaries to the current run's `COMPANIES` key, and company-check billing records to `COMPANY_CHECKS`.
 
 ## Quick start
 
@@ -37,11 +39,12 @@ Export results as JSON, CSV, Excel, XML, or HTML, or consume them through the Ap
 - Verified-review flag
 - Useful count when shown
 - Company reply text and reply date when present
+- Observed reply status, reply latency in hours and the review's update date when available
 - Scraped timestamp
 
 ### Company summary rows
 
-Company summaries are written to the current run's `COMPANIES` key after the first review is saved for that company. They include:
+Company summaries are written to the current run's `COMPANIES` key after a valid company page is parsed, even when no reviews match the requested filters. They include:
 
 - Company name, domain, Trustpilot URL, and website URL
 - Overall TrustScore and star rating
@@ -91,7 +94,7 @@ Review text, ratings, counts, and reply data can change when Trustpilot updates 
 | `verifiedOnly` | boolean | `false` | Save only reviews marked verified by Trustpilot. |
 | `proxyConfiguration` | object | Residential Apify Proxy | Proxy settings for browser requests. Residential proxies are recommended. |
 
-Provide at least one company domain, Trustpilot review slug, or full Trustpilot review URL. Duplicate targets are removed before scraping, and each run accepts up to 50 unique companies. Start with `maxReviewsPerCompany: 1` to confirm output and cost before scaling.
+Provide at least one company domain, Trustpilot review slug, or full Trustpilot review URL. Duplicate targets are removed before scraping, and each run accepts up to 50 unique companies. A small review limit reduces row charges but does not remove the company-check fee. Start with one company and review the full price before scaling.
 
 ## Common workflows
 
@@ -117,24 +120,36 @@ This Actor uses Pay Per Event pricing.
 
 | Event | Price |
 | --- | ---: |
-| Actor start | $0.00005 per GB of memory |
+| `company-check` | $0.04 per unique company checked per run |
+| Actor start | $0.00005 per GB of memory, minimum one event |
 | Each successfully saved `review-scraped` item | $0.001 |
 
-The Actor default is 1 GB of memory, so the startup charge is approximately $0.00005 per run. A one-review sample run is therefore approximately $0.00105 before any applicable platform usage, proxy traffic, or account-level charges.
+At the candidate default of 1 GB, event charges are:
 
-Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events. Reaching the user's maximum-cost limit stops further review work cleanly instead of turning a valid partial run into a failure.
+| One company, one run | Total |
+| --- | ---: |
+| 1 saved review | $0.04105 |
+| 25 saved reviews | $0.06505 |
+| 100 saved reviews | $0.14005 |
+| No matching reviews after a company check | $0.04005 |
+
+The company fee is charged before the company's first page request, once per normalized company per run. It covers an opening attempt, including a blocked or empty/filtered check, not a guaranteed number of reviews. A retry within the run does not incur another company fee. Running the same company again in a new run is a new check. `COMPANY_CHECKS` records the opening and billing status. Standard PPE runs include platform usage; any separate account subscription remains outside these event examples.
+
+Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events, but an initiated company check and Actor start still apply. Before opening another company, the Actor checks that the remaining budget covers its company fee and at least one review; otherwise it stops without fetching that page. The inability to afford another company check does not stop affordable review rows from the current company. All advertised features remain available to free-plan users within their balance and selected spending limit; there is no paid-plan feature gate.
+
+During a platform pricing transition, the code follows each run's active event prices. It does not invent or manually charge an unregistered event. `OUTPUT.billing.mode` distinguishes the previous review-only pricing from the company-check pricing.
 
 ## Limits and reliability
 
 - Trustpilot can change page structure or anti-bot behavior.
 - Residential proxies are recommended for reliable browser access.
-- Image, media, and font downloads are blocked, concurrency is bounded, and the cloud default is 1 GB to reduce platform and proxy costs without blocking Trustpilot's challenge scripts or JSON data.
+- Image, media, and font downloads are blocked and concurrency is bounded. The candidate cloud default is 1 GB; it will replace the live 2 GB setting only after cloud quality, memory and cost checks pass.
 - Very large runs can take longer because the Actor paginates public review pages.
 - Each run accepts at most 50 unique companies and 10,000 reviews per company. Use smaller batches for more predictable completion times.
 - Company replies, useful counts, and verification labels are returned only when Trustpilot exposes them on the page.
 - `lowest_rated` uses the one-star filter when no explicit `filterByRating` is provided.
 - A valid company page with no reviews matching the selected filters finishes successfully with an empty default dataset; blocked or unparseable pages still fail visibly.
-- Company summaries are stored in a named dataset, while the default dataset stays review-only.
+- Company summaries are stored in the current run's `COMPANIES` key, while the default dataset stays review-only.
 
 ## API example
 
@@ -159,7 +174,7 @@ curl -X POST "https://api.apify.com/v2/acts/fascinating_lentil~trustpilot-review
 
 ### Reply timing and coverage
 
-The configured default is 1024 MB with one browser page processed at a time, down from the previously observed 2048 MB live setting. A browser is still required by the current implementation; 256 MB is not a validated configuration. Local tests do not establish cloud memory usage or profitability.
+The candidate default is 1024 MB with one browser page processed at a time, down from the previously observed 2048 MB live setting. A browser is still required; 256/512 MB is not a validated configuration. Local tests and pricing projections do not establish future customer-run profitability.
 
 The collector skips images, fonts, stylesheets, known analytics hosts and Trustpilot's Next.js UI scripts, while keeping document requests and challenge traffic. It reads the embedded review JSON rather than relying on the interactive page UI. This traffic reduction requires cloud validation; it is not a guarantee of lower cost or successful access on every run.
 

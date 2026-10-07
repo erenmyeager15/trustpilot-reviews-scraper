@@ -9,6 +9,24 @@
       "title": "Trustpilot review records",
       "description": "Default dataset items containing public Trustpilot company reviews and reply metadata.",
       "template": "{{links.apiDefaultDatasetUrl}}/items"
+    },
+    "companyChecks": {
+      "type": "string",
+      "title": "Company checks and billing status",
+      "description": "Per-run company opening records, active fee and confirmation status, including companies with no matching reviews.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/COMPANY_CHECKS"
+    },
+    "companySummaries": {
+      "type": "string",
+      "title": "Company rating summaries",
+      "description": "Parsed company-level source metrics. Review filters need not produce rows for a company summary to be saved.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/COMPANIES"
+    },
+    "runSummary": {
+      "type": "string",
+      "title": "Coverage and billing summary",
+      "description": "Counts, partial-coverage warnings, JSON pagination counters and active pricing mode.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/OUTPUT"
     }
   }
 }

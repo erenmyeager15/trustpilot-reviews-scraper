@@ -2,7 +2,7 @@
     "actorSpecification": 1,
     "name": "trustpilot-reviews-scraper",
     "title": "Trustpilot Reviews Scraper: Ratings & Replies",
-    "description": "Scrape public Trustpilot company reviews, ratings, review text, dates, verification signals, company replies, and company-level TrustScore summaries.",
+    "description": "$0.04 per company check + $1/1,000 saved reviews. Public Trustpilot reviews, ratings, replies, reply timing and company summaries. No Trustpilot API key required.",
     "version": "1.0",
     "buildTag": "latest",
   "categories": ["BUSINESS", "MARKETING"],
@@ -35,6 +35,13 @@
                     "eventPriceUsd": 0.001,
                     "isPrimaryEvent": true,
                     "isOneTimeEvent": false
+                },
+                "company-check": {
+                    "eventTitle": "Company Check",
+                    "eventDescription": "$0.04 once per unique company per run, before its page is requested. Covers the company check including empty, filtered or blocked attempts. Duplicate inputs and same-run retries do not add another fee.",
+                    "eventPriceUsd": 0.04,
+                    "isPrimaryEvent": false,
+                    "isOneTimeEvent": false
                 }
             }
         }
@@ -44,6 +51,6 @@
         "memoryMbytes": 1024,
         "timeoutSecs": 900
     },
-    "minMemoryMbytes": 512,
+    "minMemoryMbytes": 1024,
     "maxMemoryMbytes": 2048
 }

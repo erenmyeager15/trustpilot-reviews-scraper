@@ -31,6 +31,8 @@ export function getScrapeState() {
     };
 }
 
+export function markSpendingLimitReached() { spendingLimitReached = true; }
+
 function toNum(v: unknown): number | null {
     if (typeof v === 'number' && Number.isFinite(v)) return v;
     if (typeof v === 'string') {
@@ -161,7 +163,7 @@ export function parseReview(r: any, companyName: string, companyUrl: string): Re
     };
 }
 
-export function buildCompanyHandler(input: ActorInput) {
+export function buildCompanyHandler(input: ActorInput, billing?: { canSaveReview(): boolean }) {
     const rawMax = input.maxReviewsPerCompany;
     const maxReviews = rawMax === 0 || rawMax == null ? Number.POSITIVE_INFINITY : rawMax;
     const verifiedOnly = input.verifiedOnly ?? false;
@@ -201,6 +203,11 @@ export function buildCompanyHandler(input: ActorInput) {
         const companyRecord = parseCompany(bu, slug, request.url, pp?.filters?.reviewStatistics?.ratings);
         const resolvedName = companyRecord.companyName || companyName || slug;
 
+        // A valid company check remains useful even when the review filters match no rows.
+        companySummaries.set(slug, companyRecord);
+        await Actor.setValue('COMPANIES', [...companySummaries.values()]);
+        savedCompanySlugs.add(slug);
+
         log.info(`Company: ${resolvedName} | TrustScore ${companyRecord.overallTrustScore ?? 'n/a'} | ${companyRecord.totalReviewCount ?? '?'} reviews`);
 
         const totalPages =
@@ -210,7 +217,6 @@ export function buildCompanyHandler(input: ActorInput) {
         let reviewCount = savedReviewCountsBySlug.get(slug) ?? 0;
         let pageNum = 1;
         let currentData: any = firstData;
-        let companySummarySaved = savedCompanySlugs.has(slug);
         const jsonSkip = jsonPageSkipReason(firstData, request.url);
         if (jsonSkip) {
             jsonPageSkips.set(jsonSkip, (jsonPageSkips.get(jsonSkip) ?? 0) + 1);
@@ -248,6 +254,13 @@ export function buildCompanyHandler(input: ActorInput) {
                 if (!reviewMatchesStarFilter(review, sort, filter)) continue;
                 if (verifiedOnly && !review.verifiedPurchase) continue;
 
+                if (billing && !billing.canSaveReview()) {
+                    spendingLimitReached = true;
+                    request.noRetry = true;
+                    log.warning('Review budget exhausted; stopping before saving or fetching more rows.');
+                    break;
+                }
+
                 const charge = await Actor.pushData(review, REVIEW_SCRAPED_EVENT).catch((error) => {
                     request.noRetry = true;
                     throw error;
@@ -259,18 +272,6 @@ export function buildCompanyHandler(input: ActorInput) {
                     savedReviewCount++;
                     reviewCount++;
                     savedReviewCountsBySlug.set(slug, reviewCount);
-
-                    if (!companySummarySaved) {
-                        // Save company summaries in the current run after its first saved review.
-                        try {
-                            companySummaries.set(slug, companyRecord);
-                            await Actor.setValue('COMPANIES', [...companySummaries.values()]);
-                            savedCompanySlugs.add(slug);
-                            companySummarySaved = true;
-                        } catch (error) {
-                            log.warning(`Review saved, but the optional company summary could not be saved for ${resolvedName}: ${(error as Error).message}`);
-                        }
-                    }
                 }
 
                 if (charge.eventChargeLimitReached) {
