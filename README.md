@@ -2,7 +2,7 @@
 
 Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains or Trustpilot review slugs such as `nike.com`, or full Trustpilot review URLs, and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
 
-The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves review records to the default dataset and saves company-level summary data to a separate `companies` dataset when a review is successfully collected.
+The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves review records to the default dataset and company-level summaries to the current run's `COMPANIES` key when a review is successfully collected.
 
 ## Quick start
 
@@ -41,7 +41,7 @@ Export results as JSON, CSV, Excel, XML, or HTML, or consume them through the Ap
 
 ### Company summary rows
 
-Company summaries are written to the named `companies` dataset after the first review is saved for that company. They include:
+Company summaries are written to the current run's `COMPANIES` key after the first review is saved for that company. They include:
 
 - Company name, domain, Trustpilot URL, and website URL
 - Overall TrustScore and star rating
@@ -156,6 +156,14 @@ curl -X POST "https://api.apify.com/v2/acts/fascinating_lentil~trustpilot-review
 ```
 
 ## Responsible use
+
+### Reply timing and coverage
+
+The configured default is 1024 MB with one browser page processed at a time, down from the previously observed 2048 MB live setting. A browser is still required by the current implementation; 256 MB is not a validated configuration. Local tests do not establish cloud memory usage or profitability.
+
+Rows include `replyStatus`, `replyLatencyHours`, and `reviewUpdatedDate`. Reply latency compares the source's review publication and reply publication timestamps; missing or reversed timestamps produce `null`. It is not a measurement of the company's first response if the source has replaced or edited a reply.
+
+Company summaries are stored in the current run's `COMPANIES` key, not a shared named dataset. The `OUTPUT` key reports failed requests and coverage warnings. Pagination stops at repeated pages, 100 pages per company, or a per-company processing safety limit; a partial result is not an exhaustive export.
 
 Use this Actor only for lawful collection of publicly available information. You are responsible for complying with Trustpilot's terms, privacy laws, consumer-review rules, and regulations that apply to your use case.
 

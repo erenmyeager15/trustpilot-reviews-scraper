@@ -11,7 +11,8 @@ import {
     reviewMatchesStarFilter,
     wasRecordSaved,
 } from '../dist/run-config.js';
-import { parseReview } from '../dist/routes.js';
+import { parseReview, buildCompanyHandler, getScrapeState } from '../dist/routes.js';
+import { Actor } from 'apify';
 
 assert.equal(normalizeCompanyTarget(' WWW.NIKE.COM/ '), 'nike.com');
 assert.equal(normalizeCompanyTarget('https://www.trustpilot.com/review/Nike.com?sort=recency'), 'nike.com');
@@ -76,10 +77,45 @@ assert.match(source, /savedReviewIds/);
 assert.match(source, /review rows without stable IDs/);
 assert.doesNotMatch(source, /Math\.random/);
 assert.match(main, /classifyRunOutcome/);
-assert.match(main, /maxConcurrency: 2/);
+assert.match(main, /maxConcurrency: 1/);
 assert.match(main, /resourceType === 'image'/);
 assert.match(main, /resourceType === 'media'/);
 assert.match(main, /resourceType === 'font'/);
 assert.doesNotMatch(main, /Trustpilot crawl stopped because the charge limit was reached/);
 
 console.log('Trustpilot audit checks passed.');
+
+const reply = (dates, response) => parseReview({ id: 'reply', rating: 4, dates, reply: response }, 'Fixture', 'https://www.trustpilot.com/review/fixture.com');
+assert.equal(reply({ publishedDate: '2026-10-01T00:00:00Z' }, { message: 'Thanks', publishedDate: '2026-10-02T12:00:00Z' }).replyLatencyHours, 36);
+assert.equal(reply({}, { message: 'Thanks' }).replyLatencyHours, null);
+assert.equal(reply({ publishedDate: '2026-10-02' }, { message: 'Thanks', publishedDate: '2026-10-01' }).replyLatencyHours, null);
+assert.equal(reply({}, {}).replyStatus, 'no_reply_observed');
+assert.equal(parseReview({ id: 'bad-rating', rating: 7 }, 'Fixture', '').starRating, null);
+
+const originalPush = Actor.pushData;
+const originalSet = Actor.setValue;
+const stored = new Map();
+Actor.pushData = async () => ({ chargedCount: 1, eventChargeLimitReached: false });
+Actor.setValue = async (key, value) => { stored.set(key, value); };
+try {
+    let navigations = 0;
+    const data = { props: { pageProps: { businessUnit: { displayName: 'Fixture' }, reviews: [{ id: 'fixture-repeat', rating: 5 }] } } };
+    const context = {
+        request: { url: 'https://www.trustpilot.com/review/fixture.com', userData: { slug: 'fixture.com', sort: 'most_recent', filter: 'all' } },
+        page: {
+            waitForFunction: async (_fn, arg, options) => { assert.equal(arg, undefined); assert.equal(options.timeout, 20000); },
+            evaluate: async () => JSON.stringify(data),
+            goto: async () => { navigations++; },
+        },
+    };
+    await buildCompanyHandler({ maxReviewsPerCompany: 100 })(context);
+    assert.equal(navigations, 1, 'a repeated page must not exhaust the full pagination cap');
+    assert.equal(stored.get('COMPANIES').length, 1);
+    assert.ok(getScrapeState().coverageWarnings.length > 0);
+    delete data.props.pageProps.reviews;
+    await assert.rejects(buildCompanyHandler({ maxReviewsPerCompany: 100 })(context), /collection is missing/);
+} finally {
+    Actor.pushData = originalPush;
+    Actor.setValue = originalSet;
+}
+console.log('Reply timing, isolated summaries, repeated-page and missing-collection regression checks passed.');

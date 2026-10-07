@@ -36,12 +36,12 @@ Actor.main(async () => {
 
     const crawler = new PlaywrightCrawler({
         proxyConfiguration: proxyConfig,
-        maxConcurrency: 2,
+        maxConcurrency: 1,
         minConcurrency: 1,
         requestHandlerTimeoutSecs: 180,
-        navigationTimeoutSecs: 90,
-        maxRequestRetries: 4,
-        maxSessionRotations: 3,
+        navigationTimeoutSecs: 30,
+        maxRequestRetries: 1,
+        maxSessionRotations: 1,
         sessionPoolOptions: {
             maxPoolSize: 50,
             // Trustpilot serves the AWS WAF challenge as a 403 interstitial that the browser
@@ -86,6 +86,10 @@ Actor.main(async () => {
     await crawler.run(startRequests);
 
     const scrapeState = getScrapeState();
+    await Actor.setValue('OUTPUT', { ...scrapeState, failedRequestCount,
+        partial: failedRequestCount > 0 || scrapeState.coverageWarnings.length > 0,
+        companySummariesKey: 'COMPANIES',
+    });
     const outcome = classifyRunOutcome(scrapeState, failedRequestCount);
     if (outcome === 'budget-limited') {
         log.warning(`Run stopped cleanly at the user's charge limit after saving ${scrapeState.savedReviewCount} review(s).`);

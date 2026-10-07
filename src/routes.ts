@@ -11,6 +11,8 @@ const parsedCompanySlugs = new Set<string>();
 const savedCompanySlugs = new Set<string>();
 const savedReviewIds = new Set<string>();
 const savedReviewCountsBySlug = new Map<string, number>();
+const companySummaries = new Map<string, CompanyRecord>();
+const coverageWarnings = new Set<string>();
 
 export function getScrapeState() {
     return {
@@ -18,6 +20,7 @@ export function getScrapeState() {
         savedCompanyCount: savedCompanySlugs.size,
         parsedCompanyCount: parsedCompanySlugs.size,
         spendingLimitReached,
+        coverageWarnings: [...coverageWarnings],
     };
 }
 
@@ -47,7 +50,8 @@ async function readNextData(page: PlaywrightCrawlingContext['page']): Promise<an
                 const el = document.getElementById('__NEXT_DATA__');
                 return !!(el && el.textContent && el.textContent.includes('pageProps'));
             },
-            { timeout: 60000 },
+            undefined,
+            { timeout: 20000 },
         )
         .catch(() => null);
 
@@ -124,11 +128,19 @@ function parseCompany(bu: any, slug: string, url: string, ratings: any): Company
 export function parseReview(r: any, companyName: string, companyUrl: string): ReviewRecord | null {
     const id = toStr(r?.id);
     if (!id) return null;
+    const published = Date.parse(r?.dates?.publishedDate ?? '');
+    const replied = Date.parse(r?.reply?.publishedDate ?? '');
+    const hasReply = !!toStr(r?.reply?.message);
+    const rating = toNum(r?.rating ?? r?.stars);
     return {
         reviewId: id,
         companyName,
         companyUrl,
-        starRating: toNum(r?.rating ?? r?.stars),
+        starRating: rating !== null && Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null,
+        replyStatus: hasReply ? 'replied' : 'no_reply_observed',
+        replyLatencyHours: hasReply && Number.isFinite(published) && Number.isFinite(replied) && replied >= published
+            ? Math.round((replied - published) / 3600000 * 100) / 100 : null,
+        reviewUpdatedDate: toStr(r?.dates?.updatedDate),
         reviewTitle: toStr(r?.title),
         reviewBody: toStr(r?.text),
         dateOfExperience: toStr(r?.dates?.experiencedDate),
@@ -137,7 +149,7 @@ export function parseReview(r: any, companyName: string, companyUrl: string): Re
         usefulCount: toNum(r?.likes),
         companyReply: toStr(r?.reply?.message),
         companyReplyDate: toStr(r?.reply?.publishedDate),
-        reviewUrl: `https://www.trustpilot.com/reviews/${id}`,
+        reviewUrl: `https://www.trustpilot.com/reviews/${encodeURIComponent(id)}`,
         scrapedAt: new Date().toISOString(),
     };
 }
@@ -148,6 +160,7 @@ export function buildCompanyHandler(input: ActorInput) {
     const verifiedOnly = input.verifiedOnly ?? false;
 
     return async (context: PlaywrightCrawlingContext) => {
+        const deadline = Date.now() + 120000;
         const { page, request, session } = context;
         const { slug, companyName, sort, filter } = request.userData as {
             slug: string;
@@ -194,7 +207,11 @@ export function buildCompanyHandler(input: ActorInput) {
 
         while (reviewCount < maxReviews) {
             const pageProps = currentData?.props?.pageProps ?? {};
-            const reviews: any[] = Array.isArray(pageProps.reviews) ? pageProps.reviews : [];
+            if (!Array.isArray(pageProps.reviews)) {
+                request.noRetry = true;
+                throw new Error('Trustpilot review collection is missing; not treating changed markup as an empty result.');
+            }
+            const reviews: any[] = pageProps.reviews;
 
             if (reviews.length === 0) {
                 log.info(`No more reviews for ${resolvedName} (page ${pageNum}).`);
@@ -202,6 +219,7 @@ export function buildCompanyHandler(input: ActorInput) {
             }
 
             let parseableRowsOnPage = 0;
+            let newIdsOnPage = 0;
             for (const raw of reviews) {
                 const review = parseReview(raw, resolvedName, request.url);
                 if (!review) {
@@ -209,13 +227,18 @@ export function buildCompanyHandler(input: ActorInput) {
                     continue;
                 }
                 parseableRowsOnPage++;
-                if (seen.has(review.reviewId) || savedReviewIds.has(review.reviewId)) continue;
+                if (seen.has(review.reviewId)) continue;
                 seen.add(review.reviewId);
+                newIdsOnPage++;
+                if (savedReviewIds.has(review.reviewId)) continue;
 
                 if (!reviewMatchesStarFilter(review, sort, filter)) continue;
                 if (verifiedOnly && !review.verifiedPurchase) continue;
 
-                const charge = await Actor.pushData(review, REVIEW_SCRAPED_EVENT);
+                const charge = await Actor.pushData(review, REVIEW_SCRAPED_EVENT).catch((error) => {
+                    request.noRetry = true;
+                    throw error;
+                });
                 const recordWasSaved = wasRecordSaved(charge);
 
                 if (recordWasSaved) {
@@ -228,8 +251,8 @@ export function buildCompanyHandler(input: ActorInput) {
                         // Company summaries go to a dedicated "companies" dataset after the first
                         // saved review so blocked or empty runs do not create zero-revenue output.
                         try {
-                            const companyDataset = await Actor.openDataset('companies');
-                            await companyDataset.pushData(companyRecord);
+                            companySummaries.set(slug, companyRecord);
+                            await Actor.setValue('COMPANIES', [...companySummaries.values()]);
                             savedCompanySlugs.add(slug);
                             companySummarySaved = true;
                         } catch (error) {
@@ -258,17 +281,23 @@ export function buildCompanyHandler(input: ActorInput) {
             if (spendingLimitReached) break;
             if (reviewCount >= maxReviews) break;
             if (totalPages != null && pageNum >= totalPages) break;
+            if (newIdsOnPage === 0 || pageNum >= 100 || Date.now() >= deadline) {
+                coverageWarnings.add(`${slug}: pagination stopped at a repeated-page, 100-page or time safety limit`);
+                break;
+            }
 
             pageNum++;
             const nextUrl = buildReviewPageUrl(slug, sort, filter, pageNum);
             try {
-                await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
+                await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
             } catch (e) {
+                coverageWarnings.add(`${slug}: navigation failed on page ${pageNum}; output is partial`);
                 log.warning(`Failed to navigate to page ${pageNum} for ${resolvedName}: ${(e as Error).message}`);
                 break;
             }
             currentData = await readNextData(page);
             if (!currentData) {
+                coverageWarnings.add(`${slug}: missing data on page ${pageNum}; output is partial`);
                 log.info(`Page ${pageNum} returned no data for ${resolvedName}; stopping pagination.`);
                 break;
             }

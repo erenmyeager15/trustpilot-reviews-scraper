@@ -49,6 +49,9 @@ export interface CompanyRecord {
 }
 
 export interface ReviewRecord {
+    replyStatus: 'replied' | 'no_reply_observed';
+    replyLatencyHours: number | null;
+    reviewUpdatedDate: string | null;
     reviewId: string;
     companyName: string;
     companyUrl: string;
