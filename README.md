@@ -161,6 +161,8 @@ curl -X POST "https://api.apify.com/v2/acts/fascinating_lentil~trustpilot-review
 
 The configured default is 1024 MB with one browser page processed at a time, down from the previously observed 2048 MB live setting. A browser is still required by the current implementation; 256 MB is not a validated configuration. Local tests do not establish cloud memory usage or profitability.
 
+The collector skips images, fonts, stylesheets, known analytics hosts and Trustpilot's Next.js UI scripts, while keeping document requests and challenge traffic. It reads the embedded review JSON rather than relying on the interactive page UI. This traffic reduction requires cloud validation; it is not a guarantee of lower cost or successful access on every run.
+
 Rows include `replyStatus`, `replyLatencyHours`, and `reviewUpdatedDate`. Reply latency compares the source's review publication and reply publication timestamps; missing or reversed timestamps produce `null`. It is not a measurement of the company's first response if the source has replaced or edited a reply.
 
 Company summaries are stored in the current run's `COMPANIES` key, not a shared named dataset. The `OUTPUT` key reports failed requests and coverage warnings. Pagination stops at repeated pages, 100 pages per company, or a per-company processing safety limit; a partial result is not an exhaustive export.

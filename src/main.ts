@@ -1,5 +1,6 @@
 import { Actor, log } from 'apify';
 import { PlaywrightCrawler } from 'crawlee';
+import { installTrafficPolicy } from './traffic-policy.js';
 import { ActorInput } from './types.js';
 import { buildCompanyHandler, getScrapeState } from './routes.js';
 import { buildReviewPageUrl, classifyRunOutcome, collectCompanySlugs, normalizeInput } from './run-config.js';
@@ -57,14 +58,7 @@ Actor.main(async () => {
         },
         preNavigationHooks: [
             async ({ page }) => {
-                await page.route('**/*', async (route) => {
-                    const resourceType = route.request().resourceType();
-                    if (resourceType === 'image' || resourceType === 'media' || resourceType === 'font') {
-                        await route.abort();
-                        return;
-                    }
-                    await route.continue();
-                });
+                await installTrafficPolicy(page);
             },
         ],
         requestHandler: async (context) => {

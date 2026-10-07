@@ -66,6 +66,7 @@ const actor = JSON.parse(readFileSync(new URL('../.actor/actor.json', import.met
 const schema = JSON.parse(readFileSync(new URL('../INPUT_SCHEMA.json', import.meta.url), 'utf8'));
 const source = readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+const traffic = readFileSync(new URL('../src/traffic-policy.ts', import.meta.url), 'utf8');
 
 assert.equal(actor.pricingInfo.pricingPerEvent.actorChargeEvents['review-scraped'].eventPriceUsd, 0.001);
 assert.equal(actor.defaultRunOptions.memoryMbytes, 1024);
@@ -78,9 +79,10 @@ assert.match(source, /review rows without stable IDs/);
 assert.doesNotMatch(source, /Math\.random/);
 assert.match(main, /classifyRunOutcome/);
 assert.match(main, /maxConcurrency: 1/);
-assert.match(main, /resourceType === 'image'/);
-assert.match(main, /resourceType === 'media'/);
-assert.match(main, /resourceType === 'font'/);
+assert.match(main, /installTrafficPolicy/);
+assert.match(traffic, /resourceType === 'image'/);
+assert.match(traffic, /resourceType === 'media'/);
+assert.match(traffic, /resourceType === 'font'/);
 assert.doesNotMatch(main, /Trustpilot crawl stopped because the charge limit was reached/);
 
 console.log('Trustpilot audit checks passed.');
