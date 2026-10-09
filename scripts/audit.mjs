@@ -74,12 +74,16 @@ assert.equal(actor.defaultRunOptions.timeoutSecs, 900);
 assert.equal(schema.properties.companyNames.maxItems, 50);
 assert.equal(schema.properties.companyUrls.maxItems, 50);
 assert.equal(schema.properties.maxReviewsPerCompany.maximum, 10000);
+assert.deepEqual(schema.properties.proxyConfiguration.default, { useApifyProxy: false });
+assert.deepEqual(JSON.parse(actor.exampleRunInput.body).proxyConfiguration, { useApifyProxy: false });
 assert.match(source, /savedReviewIds/);
 assert.match(source, /review rows without stable IDs/);
 assert.doesNotMatch(source, /Math\.random/);
 assert.match(main, /classifyRunOutcome/);
 assert.match(main, /maxConcurrency: 1/);
 assert.match(main, /installTrafficPolicy/);
+assert.match(main, /RequestList\.open/);
+assert.match(main, /persistenceOptions: \{ enable: false \}/);
 assert.match(traffic, /resourceType === 'image'/);
 assert.match(traffic, /resourceType === 'media'/);
 assert.match(traffic, /resourceType === 'font'/);
@@ -101,10 +105,11 @@ Actor.pushData = async () => ({ chargedCount: 1, eventChargeLimitReached: false 
 Actor.setValue = async (key, value) => { stored.set(key, value); };
 try {
     let navigations = 0;
-    const data = { props: { pageProps: { businessUnit: { displayName: 'Fixture' }, reviews: [{ id: 'fixture-repeat', rating: 5 }] } } };
+    const data = { props: { pageProps: { businessUnit: { displayName: 'Fixture', identifyingName: 'fixture.com' }, reviews: [{ id: 'fixture-repeat', rating: 5 }] } } };
     const context = {
         request: { url: 'https://www.trustpilot.com/review/fixture.com', userData: { slug: 'fixture.com', sort: 'most_recent', filter: 'all' } },
         page: {
+            url: () => 'https://www.trustpilot.com/review/fixture.com',
             waitForFunction: async (_fn, arg, options) => { assert.equal(arg, undefined); assert.equal(options.timeout, 20000); },
             evaluate: async () => JSON.stringify(data),
             goto: async () => { navigations++; },
@@ -120,11 +125,12 @@ try {
         let gotos = 0;
         let probes = 0;
         const slug = useJson ? 'json-fixture.com' : 'fallback-fixture.com';
-        const initial = { buildId: 'fixture-build', props: { pageProps: { businessUnit: { id: slug, displayName: slug }, reviews: [{ id: `${slug}-1`, rating: 4 }] } } };
-        const second = { pageProps: { businessUnit: { id: slug, displayName: slug }, reviews: [{ id: `${slug}-2`, rating: 5, reply: { message: 'Thank you' } }] } };
+        const initial = { buildId: 'fixture-build', props: { pageProps: { businessUnit: { id: slug, displayName: slug, identifyingName: slug }, reviews: [{ id: `${slug}-1`, rating: 4 }] } } };
+        const second = { pageProps: { businessUnit: { id: slug, displayName: slug, identifyingName: slug }, reviews: [{ id: `${slug}-2`, rating: 5, reply: { message: 'Thank you' } }] } };
         await buildCompanyHandler({ maxReviewsPerCompany: 2 })({
             request: { url: `https://www.trustpilot.com/review/${slug}`, userData: { slug, sort: 'most_recent', filter: 'all' } },
             page: {
+                url: () => `https://www.trustpilot.com/review/${slug}`,
                 waitForFunction: async () => {},
                 evaluate: async (_fn, target) => {
                     if (target) { probes++; return useJson ? second : null; }

@@ -9,16 +9,19 @@
         "build": "tsc",
         "dev": "tsc -w",
         "lint": "tsc --noEmit",
-        "test": "npm run build && node scripts/audit.mjs && node scripts/traffic-test.mjs && node scripts/json-pagination-test.mjs && node --test scripts/billing-test.mjs && node --experimental-vm-modules --test scripts/runtime-test.mjs"
+        "test": "npm run build && node scripts/audit.mjs && node scripts/traffic-test.mjs && node scripts/json-pagination-test.mjs && node --test scripts/source-validation-test.mjs scripts/billing-test.mjs && node --experimental-vm-modules --test scripts/runtime-test.mjs"
     },
     "dependencies": {
         "apify": "^3.1.0",
-        "crawlee": "^3.11.0",
-        "playwright": "^1.60.0"
+        "crawlee": "^3.18.2",
+        "playwright": "^1.64.0"
     },
     "devDependencies": {
         "@apify/tsconfig": "^0.1.0",
         "typescript": "^5.4.0"
+    },
+    "overrides": {
+        "basic-ftp": "6.2.3"
     },
     "engines": {
         "node": ">=20.0.0"

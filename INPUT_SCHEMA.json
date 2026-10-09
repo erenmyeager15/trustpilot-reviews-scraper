@@ -1,12 +1,12 @@
 {
     "title": "Trustpilot Reviews Scraper: Public Reviews & Ratings",
-    "description": "Public Trustpilot reviews and company rating summaries. Planned release pricing: $0.04 per unique company check per run + $0.001 per saved review and the small Actor-start charge. Check the live Pricing tab before running.",
+    "description": "Public Trustpilot reviews and company rating summaries. $0.001 per saved review plus the small Actor-start charge. The scheduled company-check fee was canceled. Check the live Pricing tab before running.",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
         "companyNames": {
             "title": "Company Domains or Trustpilot Slugs",
-            "description": "Company domains or Trustpilot review slugs, for example \"nike.com\". The planned release adds a $0.04 check fee per unique company per run, including empty or blocked attempts. Duplicate inputs do not add another company fee.",
+            "description": "Company domains or Trustpilot review slugs, for example \"nike.com\". Duplicate company targets are removed before scraping.",
             "type": "array",
             "editor": "stringList",
             "prefill": ["nike.com"],
@@ -23,7 +23,7 @@
         },
         "maxReviewsPerCompany": {
             "title": "Max Reviews Per Company",
-            "description": "Maximum reviews to save per company. The planned $0.04 company-check fee applies even if only 1 review is requested. At 1 GB, one company with 1 review is $0.04105; 25 reviews are $0.06505. Set 0 for all available pages, subject to safety limits.",
+            "description": "Maximum reviews to save per company. At 1 GB, one saved review currently costs $0.00105 and will cost $0.00130 after the scheduled Actor Start change on 24 October 2026. Check the live Pricing tab. Set 0 for all available pages, subject to safety limits.",
             "type": "integer",
             "editor": "number",
             "default": 1,
@@ -57,12 +57,11 @@
         },
         "proxyConfiguration": {
             "title": "Proxy Configuration",
-            "description": "Proxy settings for browser requests. Trustpilot uses anti-bot protection, so residential proxies are recommended for reliable results.",
+            "description": "Optional proxy settings for browser requests. Direct access is the default to control cost. If your run is blocked, you can explicitly choose a proxy; the Actor never silently switches to Residential traffic.",
             "type": "object",
             "editor": "proxy",
             "default": {
-                "useApifyProxy": true,
-                "apifyProxyGroups": ["RESIDENTIAL"]
+                "useApifyProxy": false
             }
         }
     }

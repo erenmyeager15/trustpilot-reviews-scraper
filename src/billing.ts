@@ -141,6 +141,13 @@ export class CompanyCheckBilling {
         const fee = feeEnabled ? pricing.perEventPrices[COMPANY_CHECK_EVENT] : 0;
         const record: CompanyCheckRecord = { runId: this.port.runId, companyDomain, status: 'charging', requestedAt: new Date().toISOString(),
             feeUsd: fee, charged: false };
+        if (!feeEnabled) {
+            // No charge can become uncertain at retained review-only pricing. Keep the
+            // in-memory authorization summary and avoid a ledger for a nonexistent fee.
+            record.status = 'authorized';
+            this.records[companyDomain] = record;
+            return true;
+        }
         this.records[companyDomain] = record;
         // Save a user-accessible check record and a duplicate-charge guard before charging.
         try { await this.port.persist(this.records); }

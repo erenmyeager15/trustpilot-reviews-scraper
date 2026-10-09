@@ -19,6 +19,12 @@ for (const payload of [null, {}, { pageProps: { ...good.pageProps, reviews: [] }
     assert.equal(validateJsonPage(payload, first, new Set()), null);
 }
 assert.equal(validateJsonPage(good, first, new Set(['new'])), null);
+const withDomain = { ...first, props: { pageProps: { businessUnit: { id: 'company1', identifyingName: 'nike.com' } } } };
+for (const company of [{ id: 'company1', identifyingName: 'other.com' },
+    { id: 'other', identifyingName: 'nike.com' }, { id: 'company1', identifyingName: 'https://evil.com' }]) {
+    assert.equal(validateJsonPage({ pageProps: { ...good.pageProps, businessUnit: company } }, withDomain, new Set()), null);
+}
+assert.ok(validateJsonPage({ pageProps: { ...good.pageProps, businessUnit: { id: 'company1', identifyingName: 'WWW.NIKE.COM' } } }, withDomain, new Set()));
 assert.equal(await tryJsonPage({ evaluate: async () => { throw Error('timeout'); } }, first, next, new Set()), null);
 assert.ok(await tryJsonPage({ evaluate: async () => good }, first, next, new Set()));
 console.log('JSON pagination URL, identity, field preservation, duplicate and fallback checks passed.');

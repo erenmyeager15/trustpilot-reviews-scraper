@@ -8,23 +8,24 @@ import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
 async function simulate({ budget = Infinity, companyNames = ['nike.com'], companyUrls = [],
   maxReviewsPerCompany = 1, filterByRating = 'all', verifiedOnly = false, ppe = true,
   prices = { 'company-check': 0.04, 'review-scraped': 0.001, 'apify-actor-start': 0.00005 },
-  navigationFailures = [], blockedAttempts = [], empty = false, malformed = false } = {}) {
+  navigationFailures = [], blockedAttempts = [], empty = false, malformed = false,
+  sourceDomain, changedSecondPageId = false, loadedUrl, proxyConfiguration } = {}) {
   const values = new Map();
   const rows = [];
   const trace = [];
   const counts = { 'apify-actor-start': ppe ? 1 : 0 };
-  const stats = { browsers: 0, navigations: 0, checks: 0, aborts: 0, companyLimitFlags: [] };
+  const stats = { browsers: 0, navigations: 0, checks: 0, aborts: 0, companyStores: 0, companyLimitFlags: [] };
   let runTask;
   const remaining = () => budget - Object.entries(prices).reduce((sum, [event, price]) => sum + price * (counts[event] ?? 0), 0);
   const capacity = event => !ppe || !prices[event] ? Infinity : Math.max(0, Math.floor(Number((remaining() / prices[event]).toFixed(4))));
   const log = { info() {}, warning() {}, error() {} };
   const Actor = {
     main(fn) { runTask = Promise.resolve().then(fn); return runTask; },
-    getInput: async () => ({ companyNames, companyUrls, maxReviewsPerCompany, filterByRating, verifiedOnly }),
+    getInput: async () => ({ companyNames, companyUrls, maxReviewsPerCompany, filterByRating, verifiedOnly, proxyConfiguration }),
     getEnv: () => ({ actorRunId: 'runtime-fixture-run' }),
     getValue: async key => values.get(key) ?? null,
-    setValue: async (key, value) => { values.set(key, structuredClone(value)); },
-    createProxyConfiguration: async () => ({ mock: true }),
+    setValue: async (key, value) => { if (key === 'COMPANY_CHECKS') stats.companyStores++; values.set(key, structuredClone(value)); },
+    createProxyConfiguration: async config => { stats.proxyConfiguration = structuredClone(config); return { mock: true }; },
     getChargingManager: () => ({
       getPricingInfo: () => ({ isPayPerEvent: ppe, maxTotalChargeUsd: budget, perEventPrices: prices }),
       getChargedEventCount: event => counts[event] ?? 0,
@@ -51,6 +52,7 @@ async function simulate({ budget = Infinity, companyNames = ['nike.com'], compan
     },
   };
   class NonRetryableError extends Error {}
+  const RequestList = { open: async (_name, sources) => ({ sources }) };
   class PlaywrightCrawler {
     constructor(options) {
       stats.browsers++;
@@ -59,14 +61,15 @@ async function simulate({ budget = Infinity, companyNames = ['nike.com'], compan
       this.autoscaledPool = { abort: async () => { this.stopped = true; stats.aborts++; } };
       assert.equal(options.maxConcurrency, 1);
     }
-    async run(requests) {
+    async run(requests = this.options.requestList.sources) {
       for (const request of requests) {
         if (this.stopped) break;
         for (let attempt = 0; attempt <= this.options.maxRequestRetries; attempt++) {
           let pageNumber = 1;
           const data = () => ({ props: { pageProps: {
-            businessUnit: { id: request.userData.slug, displayName: request.userData.slug,
-              identifyingName: request.userData.slug, trustScore: 4.3, stars: 4, numberOfReviews: 50 },
+            businessUnit: { id: changedSecondPageId && pageNumber > 1 ? 'wrong-company-id' : request.userData.slug,
+              displayName: request.userData.slug,
+              identifyingName: sourceDomain ?? request.userData.slug, trustScore: 4.3, stars: 4, numberOfReviews: 50 },
             filters: { pagination: { totalPages: 2 } },
             ...(malformed ? {} : { reviews: empty ? [] : Array.from({ length: 20 }, (_, i) => ({
               id: `${request.userData.slug}-${(pageNumber - 1) * 20 + i}`, rating: 4,
@@ -77,6 +80,7 @@ async function simulate({ budget = Infinity, companyNames = ['nike.com'], compan
             })) }),
           } } });
           const page = {
+            url: () => loadedUrl ?? request.url,
             route: async () => {},
             waitForFunction: async () => {},
             evaluate: async (_fn, target) => target ? null : blockedAttempts.includes(attempt) ? null : JSON.stringify(data()),
@@ -84,7 +88,9 @@ async function simulate({ budget = Infinity, companyNames = ['nike.com'], compan
           };
           const context = { page, request, log, session: { markBad() {} } };
           try {
-            for (const hook of this.options.preNavigationHooks) await hook(context);
+            const gotoOptions = {};
+            for (const hook of this.options.preNavigationHooks) await hook(context, gotoOptions);
+            assert.equal(gotoOptions.waitUntil, 'domcontentloaded', 'data readiness must not depend on a full-page load');
             // Crawlee navigates only after the pre-navigation hook succeeds.
             stats.navigations++; trace.push('page-navigation');
             if (navigationFailures.includes(attempt)) throw new Error('Navigation fixture failure');
@@ -101,7 +107,7 @@ async function simulate({ budget = Infinity, companyNames = ['nike.com'], compan
   }
   const context = createContext({ URL, URLSearchParams });
   const modules = new Map();
-  for (const [name, exports] of [['apify', { Actor, log }], ['crawlee', { NonRetryableError, PlaywrightCrawler }]]) {
+  for (const [name, exports] of [['apify', { Actor, log }], ['crawlee', { NonRetryableError, PlaywrightCrawler, RequestList }]]) {
     modules.set(name, new SyntheticModule(Object.keys(exports), function () {
       for (const [key, value] of Object.entries(exports)) this.setExport(key, value);
     }, { context, identifier: name }));
@@ -118,6 +124,19 @@ async function simulate({ budget = Infinity, companyNames = ['nike.com'], compan
   return { values, rows, counts, stats, trace, error, totalUsd: budget === Infinity
     ? Object.entries(prices).reduce((sum, [event, price]) => sum + price * (counts[event] ?? 0), 0) : budget - remaining() };
 }
+
+test('retained review-only pricing saves one review without a canceled company charge', async () => {
+  const r = await simulate({ budget: 0.00105, prices: { 'review-scraped': 0.001, 'apify-actor-start': 0.00005 } });
+  assert.equal(r.error, undefined);
+  assert.equal(r.rows.length, 1);
+  assert.equal(r.stats.checks, 0);
+  assert.equal(r.stats.navigations, 1);
+  assert.equal(r.stats.companyStores, 0, 'retained pricing needs no ledger for a nonexistent company fee');
+  assert.equal(r.values.has('COMPANY_CHECKS'), false);
+  assert.deepEqual(r.stats.proxyConfiguration, { useApifyProxy: false });
+  assert.ok(!r.trace.includes('company-charge'));
+  assert.ok(Math.abs(r.totalUsd - 0.00105) < 1e-10);
+});
 
 test('entry point stops an underfunded run before any navigation or company charge', async () => {
   const r = await simulate({ budget: 0.02 });
@@ -177,9 +196,42 @@ test('valid empty and filtered checks preserve company summaries and transparent
 });
 test('missing review collections are not disguised as legitimate empty results', async () => {
     const r = await simulate({ malformed: true });
-    assert.match(r.error?.message ?? '', /not a verified empty result/);
+    assert.match(r.error?.message ?? '', /No valid Trustpilot company/);
   assert.equal(r.stats.checks, 1); assert.equal(r.rows.length, 0);
   assert.equal(r.values.get('OUTPUT').failedRequestCount, 1); assert.equal(r.values.get('OUTPUT').partial, true);
+});
+
+test('wrong-company source data cannot produce paid rows or a company summary', async () => {
+  const r = await simulate({ sourceDomain: 'other.com', prices: { 'review-scraped': 0.001, 'apify-actor-start': 0.00005 } });
+  assert.match(r.error?.message ?? '', /No valid Trustpilot company/);
+  assert.equal(r.rows.length, 0); assert.equal(r.stats.checks, 0); assert.equal(r.stats.navigations, 1);
+  assert.equal(r.values.has('COMPANIES'), false);
+  assert.equal(r.values.get('OUTPUT').parsedCompanyCount, 0);
+});
+
+test('a redirect to another company cannot produce paid rows', async () => {
+  const r = await simulate({ loadedUrl: 'https://www.trustpilot.com/review/other.com',
+    prices: { 'review-scraped': 0.001, 'apify-actor-start': 0.00005 } });
+  assert.match(r.error?.message ?? '', /No valid Trustpilot company/);
+  assert.equal(r.rows.length, 0); assert.equal(r.stats.navigations, 1);
+});
+
+test('conflicting identity on a later browser page preserves only verified rows and reports partial output', async () => {
+  const r = await simulate({ changedSecondPageId: true, maxReviewsPerCompany: 25,
+    prices: { 'review-scraped': 0.001, 'apify-actor-start': 0.00005 } });
+  assert.equal(r.error, undefined); assert.equal(r.rows.length, 20);
+  assert.equal(r.values.get('OUTPUT').partial, true);
+  assert.match(r.values.get('OUTPUT').coverageWarnings[0], /rejected page 2/);
+  assert.equal(r.counts['review-scraped'], 20);
+});
+
+test('explicit datacenter or no-proxy settings are honored without a Residential upgrade', async () => {
+  for (const config of [{ useApifyProxy: true, apifyProxyGroups: [] }, { useApifyProxy: false }]) {
+    const r = await simulate({ proxyConfiguration: config,
+      prices: { 'review-scraped': 0.001, 'apify-actor-start': 0.00005 } });
+    assert.equal(r.error, undefined); assert.equal(r.rows.length, 1);
+    assert.deepEqual(r.stats.proxyConfiguration, config);
+  }
 });
 test('legacy pricing and unmonetized local runs retain all original review fields', async () => {
   for (const config of [{ prices: { 'review-scraped': 0.001, 'apify-actor-start': 0.00005 }, budget: 0.00105 },

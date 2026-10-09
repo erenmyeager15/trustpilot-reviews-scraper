@@ -1,5 +1,5 @@
 import { Actor, log } from 'apify';
-import { NonRetryableError, PlaywrightCrawler } from 'crawlee';
+import { NonRetryableError, PlaywrightCrawler, RequestList } from 'crawlee';
 import { installTrafficPolicy } from './traffic-policy.js';
 import { ActorInput } from './types.js';
 import { buildCompanyHandler, getScrapeState, markSpendingLimitReached } from './routes.js';
@@ -17,6 +17,14 @@ Actor.main(async () => {
     log.info(`Starting Trustpilot scrape for ${companySlugs.length} unique company(ies) | sort=${sort} | filter=${filter}`);
 
     const manager = Actor.getChargingManager();
+    const initialPricing = manager.getPricingInfo();
+    const companyFeeEnabled = initialPricing.isPayPerEvent
+        && COMPANY_CHECK_EVENT in initialPricing.perEventPrices;
+    // The retained review-only price has no uncertain company charge to recover.
+    // Avoid a storage read and ledger writes that cannot protect any charge.
+    const previousCompanyChecks = companyFeeEnabled
+        ? ((await Actor.getValue<Record<string, CompanyCheckRecord>>('COMPANY_CHECKS')) ?? {})
+        : {};
     const billing = new CompanyCheckBilling({
         runId: Actor.getEnv().actorRunId ?? `local-${Date.now()}`,
         pricing: () => manager.getPricingInfo(),
@@ -24,7 +32,7 @@ Actor.main(async () => {
         canCharge: (event) => manager.calculateMaxEventChargeCountWithinLimit(event),
         chargeCompany: () => Actor.charge({ eventName: COMPANY_CHECK_EVENT, count: 1 }),
         persist: (records) => Actor.setValue('COMPANY_CHECKS', records),
-    }, (await Actor.getValue<Record<string, CompanyCheckRecord>>('COMPANY_CHECKS')) ?? {});
+    }, previousCompanyChecks);
     log.info('Active run pricing', billing.getSummary());
 
     const finishRun = async (failedRequestCount: number) => {
@@ -50,10 +58,10 @@ Actor.main(async () => {
         return;
     }
 
-    // Trustpilot is protected by an AWS WAF JS challenge, so residential proxies + a real
-    // browser are required. Default to Apify residential proxies when nothing is provided.
+    // Direct browser access is the cost candidate. Honor explicit proxy settings and
+    // never silently upgrade a user's connection to Residential traffic.
     const proxyConfig = await Actor.createProxyConfiguration(
-        normalizedInput.proxyConfiguration ?? { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+        normalizedInput.proxyConfiguration ?? { useApifyProxy: false },
     );
 
     const startRequests = companySlugs.map((slug) => ({
@@ -66,19 +74,25 @@ Actor.main(async () => {
             label: 'company',
         },
     }));
+    // This is a bounded, fully known input list. Keeping it in memory avoids a
+    // platform request queue without weakening the per-run company cap.
+    const requestList = await RequestList.open(null, startRequests);
 
     const handler = buildCompanyHandler(normalizedInput, billing);
     let failedRequestCount = 0;
+    const usesProxy = normalizedInput.proxyConfiguration?.useApifyProxy === true;
 
     const crawler = new PlaywrightCrawler({
+        requestList,
         proxyConfiguration: proxyConfig,
         maxConcurrency: 1,
         minConcurrency: 1,
         requestHandlerTimeoutSecs: 180,
         navigationTimeoutSecs: 30,
         maxRequestRetries: 1,
-        maxSessionRotations: 1,
-        sessionPoolOptions: {
+        maxSessionRotations: usesProxy ? 1 : 0,
+        useSessionPool: usesProxy,
+        sessionPoolOptions: usesProxy ? {
             maxPoolSize: 50,
             // Trustpilot serves the AWS WAF challenge as a 403 interstitial that the browser
             // solves in-page. Do not retire sessions on 403/429; let readNextData() wait it out.
@@ -87,13 +101,19 @@ Actor.main(async () => {
                 maxAgeSecs: 1800,
                 maxUsageCount: 20,
             },
-        },
+        } : undefined,
+        // Per-run diagnostics are written to OUTPUT. The crawler-statistics KVS
+        // snapshot is redundant for this short bounded workload.
+        statisticsOptions: { persistenceOptions: { enable: false } },
         browserPoolOptions: {
             useFingerprints: true,
         },
         preNavigationHooks: [
-            async ({ page, request }) => {
-                // This hook runs BEFORE the first navigation and before Residential transfer.
+            async ({ page, request }, gotoOptions) => {
+                // The handler waits for __NEXT_DATA__ explicitly. Waiting for all page
+                // resources first adds work without establishing review-data readiness.
+                gotoOptions.waitUntil = 'domcontentloaded';
+                // This hook runs before the first navigation or any configured proxy transfer.
                 if (getScrapeState().spendingLimitReached) {
                     request.noRetry = true;
                     request.userData.billingBudgetSkipped = true;
@@ -132,6 +152,6 @@ Actor.main(async () => {
         },
     });
 
-    await crawler.run(startRequests);
+    await crawler.run();
     await finishRun(failedRequestCount);
 });

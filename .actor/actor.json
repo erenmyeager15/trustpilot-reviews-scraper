@@ -2,7 +2,7 @@
     "actorSpecification": 1,
     "name": "trustpilot-reviews-scraper",
     "title": "Trustpilot Reviews Scraper: Ratings & Replies",
-    "description": "$0.04 per company check + $1/1,000 saved reviews. Public Trustpilot reviews, ratings, replies, reply timing and company summaries. No Trustpilot API key required.",
+    "description": "Public Trustpilot reviews, ratings, replies, reply timing and company summaries. $1/1,000 saved reviews plus the small Actor-start charge. No Trustpilot API key required.",
     "version": "1.0",
     "buildTag": "latest",
   "categories": ["BUSINESS", "MARKETING"],
@@ -12,7 +12,7 @@
     "readme": "../README.md",
     "output": "./output_schema.json",
     "exampleRunInput": {
-        "body": "{\"companyNames\":[\"nike.com\"],\"companyUrls\":[],\"maxReviewsPerCompany\":1,\"sortBy\":\"most_recent\",\"filterByRating\":\"all\",\"verifiedOnly\":false,\"proxyConfiguration\":{\"useApifyProxy\":true,\"apifyProxyGroups\":[\"RESIDENTIAL\"]}}",
+        "body": "{\"companyNames\":[\"nike.com\"],\"companyUrls\":[],\"maxReviewsPerCompany\":1,\"sortBy\":\"most_recent\",\"filterByRating\":\"all\",\"verifiedOnly\":false,\"proxyConfiguration\":{\"useApifyProxy\":false}}",
         "contentType": "application/json; charset=utf-8"
     },
     "storages": {
@@ -34,13 +34,6 @@
                     "eventDescription": "Charged for each Trustpilot review successfully extracted and saved to the dataset.",
                     "eventPriceUsd": 0.001,
                     "isPrimaryEvent": true,
-                    "isOneTimeEvent": false
-                },
-                "company-check": {
-                    "eventTitle": "Company Check",
-                    "eventDescription": "$0.04 once per unique company per run, before its page is requested. Covers the company check including empty, filtered or blocked attempts. Duplicate inputs and same-run retries do not add another fee.",
-                    "eventPriceUsd": 0.04,
-                    "isPrimaryEvent": false,
                     "isOneTimeEvent": false
                 }
             }

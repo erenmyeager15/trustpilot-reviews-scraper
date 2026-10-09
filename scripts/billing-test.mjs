@@ -156,8 +156,18 @@ test('invalid spending limits never permit a company opening', async () => {
 test('legacy pricing does not invent an unregistered company charge', async () => {
   const f = fixture({ prices: { [REVIEW_SCRAPED_EVENT]: 0.001, 'apify-actor-start': 0.00005 }, budget: 0.00105 });
   assert.equal(await f.billing.authorize('nike.com'), true); assert.equal(f.calls(), 0);
+  assert.equal(f.persisted.length, 0);
   assert.equal(f.billing.getSummary().mode, 'legacy-pricing'); f.chargeReviews(1);
   assert.equal(f.billing.canSaveReview(), false);
+});
+
+test('review-only authorization does not touch a fee ledger or company charge', async () => {
+  const f = fixture({ prices: { [REVIEW_SCRAPED_EVENT]: 0.001 }, persistFailure: 1 });
+  assert.equal(await f.billing.authorize('nike.com'), true);
+  assert.equal(f.billing.getSummary().companyChecksAuthorized, 1);
+  assert.equal(f.calls(), 0);
+  assert.equal(await f.billing.authorize('nike.com'), true);
+  assert.equal(f.persisted.length, 0); assert.equal(f.calls(), 0);
 });
 test('local unmonetized work and free-plan users are not feature-gated', async () => {
   const f = fixture({ ppe: false, prices: {} });
@@ -177,14 +187,15 @@ test('pre-navigation budget stop is a clean outcome without parsed companies', (
   assert.throws(() => classifyRunOutcome({ parsedCompanyCount: 0, savedReviewCount: 0, spendingLimitReached: true }, 1), /No valid/);
   assert.throws(() => classifyRunOutcome({ parsedCompanyCount: 1, savedReviewCount: 0, spendingLimitReached: true }, 1), /not a verified empty/);
 });
-test('manifest, descriptions and examples disclose the complete candidate price', () => {
+test('retained pricing cannot reintroduce the canceled company-check fee', () => {
   const manifest = JSON.parse(readFileSync(new URL('../.actor/actor.json', import.meta.url), 'utf8'));
   const events = manifest.pricingInfo.pricingPerEvent.actorChargeEvents;
-  assert.equal(events[COMPANY_CHECK_EVENT].eventPriceUsd, 0.04);
-  assert.equal(events[COMPANY_CHECK_EVENT].isOneTimeEvent, false);
+  assert.equal(events[COMPANY_CHECK_EVENT], undefined);
+  assert.deepEqual(Object.keys(events).sort(), ['apify-actor-start', REVIEW_SCRAPED_EVENT].sort());
   assert.equal(events[REVIEW_SCRAPED_EVENT].eventPriceUsd, 0.001);
   assert.equal(events['apify-actor-start'].eventPriceUsd, 0.00005);
   assert.equal(manifest.minMemoryMbytes, 1024);
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-  for (const value of ['$0.04', '$0.04105', '$0.06505', '$0.04005', 'blocked', 'COMPANY_CHECKS']) assert.ok(readme.includes(value));
+  for (const value of ['$1 per 1,000', 'confirmed cancellation', 'COMPANY_CHECKS']) assert.ok(readme.includes(value));
+  assert.ok(!/\$0\.04105|\$0\.06505|\$0\.04005/.test(readme));
 });

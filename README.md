@@ -2,9 +2,9 @@
 
 Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains or Trustpilot review slugs such as `nike.com`, or full Trustpilot review URLs, and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
 
-Release pricing: **$0.04 per unique company check per run + $1 per 1,000 successfully saved reviews**, plus the small Actor-start charge. This repository describes the candidate release; the Apify Pricing tab is authoritative until that release and its pricing are activated.
+Current pricing: **$1 per 1,000 successfully saved reviews + $0.00005 per Actor Start event**. The start fee is scheduled to become **$0.00030 on 24 October 2026 at 02:50 IST**; review pricing and included platform usage stay unchanged. Apify support confirmed cancellation of the former $0.04/company-check proposal, and the company-check event has been removed from the manifest. The live Apify Pricing tab remains authoritative.
 
-The Actor uses a browser with proxy support because Trustpilot can present anti-bot challenges. It saves reviews to the default dataset, parsed company summaries to the current run's `COMPANIES` key, and company-check billing records to `COMPANY_CHECKS`.
+The Actor uses a browser because Trustpilot can present anti-bot challenges. Direct access is the default to control cost; proxy settings remain available when a user explicitly needs them. The Actor never silently switches a run to Residential traffic. It saves reviews to the default dataset and parsed company summaries to the current run's `COMPANIES` key.
 
 ## Quick start
 
@@ -18,10 +18,7 @@ Run one company with one recent review:
   "sortBy": "most_recent",
   "filterByRating": "all",
   "verifiedOnly": false,
-  "proxyConfiguration": {
-    "useApifyProxy": true,
-    "apifyProxyGroups": ["RESIDENTIAL"]
-  }
+  "proxyConfiguration": { "useApifyProxy": false }
 }
 ```
 
@@ -92,9 +89,9 @@ Review text, ratings, counts, and reply data can change when Trustpilot updates 
 | `sortBy` | string | `most_recent` | `most_recent`, `most_relevant`, or `lowest_rated`. |
 | `filterByRating` | string | `all` | `all`, `5`, `4`, `3`, `2`, or `1`. |
 | `verifiedOnly` | boolean | `false` | Save only reviews marked verified by Trustpilot. |
-| `proxyConfiguration` | object | Residential Apify Proxy | Proxy settings for browser requests. Residential proxies are recommended. |
+| `proxyConfiguration` | object | No proxy | Optional browser proxy settings. The Actor honors your selection and never silently upgrades it to Residential traffic. |
 
-Provide at least one company domain, Trustpilot review slug, or full Trustpilot review URL. Duplicate targets are removed before scraping, and each run accepts up to 50 unique companies. A small review limit reduces row charges but does not remove the company-check fee. Start with one company and review the full price before scaling.
+Provide at least one company domain, Trustpilot review slug, or full Trustpilot review URL. Duplicate targets are removed before scraping, and each run accepts up to 50 unique companies. Start with one company and review the live price before scaling.
 
 ## Common workflows
 
@@ -120,30 +117,29 @@ This Actor uses Pay Per Event pricing.
 
 | Event | Price |
 | --- | ---: |
-| `company-check` | $0.04 per unique company checked per run |
-| Actor start | $0.00005 per GB of memory, minimum one event |
+| Actor start | $0.00005 currently; $0.00030 from 24 October 2026 at 02:50 IST. One event through 1 GB, then one per additional GB. |
 | Each successfully saved `review-scraped` item | $0.001 |
 
-At the candidate default of 1 GB, event charges are:
+At the 1 GB default, event charges are:
 
-| One company, one run | Total |
-| --- | ---: |
-| 1 saved review | $0.04105 |
-| 25 saved reviews | $0.06505 |
-| 100 saved reviews | $0.14005 |
-| No matching reviews after a company check | $0.04005 |
+| One company, one run | Current total | From 24 October 2026 |
+| --- | ---: | ---: |
+| 1 saved review | $0.00105 | $0.00130 |
+| 25 saved reviews | $0.02505 | $0.02530 |
+| 100 saved reviews | $0.10005 | $0.10030 |
+| No matching reviews | $0.00005 | $0.00030 |
 
-The company fee is charged before the company's first page request, once per normalized company per run. It covers an opening attempt, including a blocked or empty/filtered check, not a guaranteed number of reviews. A retry within the run does not incur another company fee. Running the same company again in a new run is a new check. `COMPANY_CHECKS` records the opening and billing status. Standard PPE runs include platform usage; any separate account subscription remains outside these event examples.
+Apify support confirmed cancellation of the company-check addition previously scheduled for 21 October 2026. It will not take effect. At retained review-only pricing, blocked or empty attempts incur no review or company-check event charge; the small Actor-start charge still applies. No `COMPANY_CHECKS` ledger is created for the nonexistent fee; backward-compatible billing code uses it only if an active pricing configuration actually registers that event. Standard PPE runs include platform usage; any separate account subscription remains outside these event examples.
 
-Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events, but an initiated company check and Actor start still apply. Before opening another company, the Actor checks that the remaining budget covers its company fee and at least one review; otherwise it stops without fetching that page. The inability to afford another company check does not stop affordable review rows from the current company. All advertised features remain available to free-plan users within their balance and selected spending limit; there is no paid-plan feature gate.
+Reviews are charged only when they are successfully saved to the dataset. Blocked or empty runs do not charge `review-scraped` events; the Actor-start charge still applies. The Actor checks its effective event prices and remaining budget before opening another company. All advertised features remain available to free-plan users within their balance and selected spending limit; there is no paid-plan feature gate.
 
 During a platform pricing transition, the code follows each run's active event prices. It does not invent or manually charge an unregistered event. `OUTPUT.billing.mode` distinguishes the previous review-only pricing from the company-check pricing.
 
 ## Limits and reliability
 
 - Trustpilot can change page structure or anti-bot behavior.
-- Residential proxies are recommended for reliable browser access.
-- Image, media, and font downloads are blocked and concurrency is bounded. The candidate cloud default is 1 GB; it will replace the live 2 GB setting only after cloud quality, memory and cost checks pass.
+- Direct browser access is the cost-controlled default. Source blocking can vary by network; select a proxy explicitly only when needed.
+- Image, media, and font downloads are blocked and concurrency is bounded. The live cloud default verified on 9 October 2026 is 1 GB; a smaller browser allocation has not been validated.
 - Very large runs can take longer because the Actor paginates public review pages.
 - Each run accepts at most 50 unique companies and 10,000 reviews per company. Use smaller batches for more predictable completion times.
 - Company replies, useful counts, and verification labels are returned only when Trustpilot exposes them on the page.
@@ -163,10 +159,7 @@ curl -X POST "https://api.apify.com/v2/acts/fascinating_lentil~trustpilot-review
     "sortBy": "most_recent",
     "filterByRating": "all",
     "verifiedOnly": false,
-    "proxyConfiguration": {
-      "useApifyProxy": true,
-      "apifyProxyGroups": ["RESIDENTIAL"]
-    }
+    "proxyConfiguration": { "useApifyProxy": false }
   }'
 ```
 
@@ -174,7 +167,7 @@ curl -X POST "https://api.apify.com/v2/acts/fascinating_lentil~trustpilot-review
 
 ### Reply timing and coverage
 
-The candidate default is 1024 MB with one browser page processed at a time, down from the previously observed 2048 MB live setting. A browser is still required; 256/512 MB is not a validated configuration. Local tests and pricing projections do not establish future customer-run profitability.
+The live default verified on 9 October 2026 is 1024 MB with one browser page processed at a time. A browser is still required; 256/512 MB is not a validated configuration. Local tests and pricing projections do not establish future customer-run profitability.
 
 The collector skips images, fonts, stylesheets, known analytics hosts and Trustpilot's Next.js UI scripts, while keeping document requests and challenge traffic. It reads the embedded review JSON rather than relying on the interactive page UI. This traffic reduction requires cloud validation; it is not a guarantee of lower cost or successful access on every run.
 

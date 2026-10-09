@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { businessIdentityMatches } from './source-validation.js';
 
 export function buildJsonPageUrl(firstData: any, nextUrl: string): string | null {
     const build = firstData?.buildId;
@@ -26,10 +27,7 @@ export function validateJsonPage(payload: any, firstData: any, seenIds: Set<stri
     const actual = pp?.businessUnit ?? pp?.business;
     if (!actual || !expected || !Array.isArray(pp?.reviews) || !pp.reviews.length) return null;
     // Require source identity, not just a matching display name.
-    const sameId = typeof expected.id === 'string' && expected.id.length > 0 && actual.id === expected.id;
-    const sameDomain = typeof expected.identifyingName === 'string' && expected.identifyingName.length > 0
-        && actual.identifyingName === expected.identifyingName;
-    if (!sameId && !sameDomain) return null;
+    if (!businessIdentityMatches(expected, actual)) return null;
     if (!pp.reviews.every((r: any) => typeof r?.id === 'string' && r.id.length > 0)) return null;
     if (pp.reviews.every((r: any) => seenIds.has(r.id))) return null;
     return { ...firstData, props: { ...firstData.props, pageProps: pp } };

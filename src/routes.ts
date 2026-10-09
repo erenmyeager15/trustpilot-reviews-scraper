@@ -3,6 +3,7 @@ import { PlaywrightCrawlingContext } from 'crawlee';
 import { ActorInput, CompanyRecord, FilterByRating, ReviewRecord, SortOption } from './types.js';
 import { buildReviewPageUrl, reviewMatchesStarFilter, wasRecordSaved } from './run-config.js';
 import { jsonPageSkipReason, tryJsonPage } from './json-pagination.js';
+import { reviewPageValidationError } from './source-validation.js';
 
 const REVIEW_SCRAPED_EVENT = 'review-scraped';
 
@@ -51,7 +52,7 @@ function toStr(v: unknown): string | null {
 }
 
 /** Pull the parsed __NEXT_DATA__ payload out of the rendered page. */
-async function readNextData(page: PlaywrightCrawlingContext['page']): Promise<any | null> {
+export async function readNextData(page: PlaywrightCrawlingContext['page']): Promise<any | null> {
     // Wait until the AWS WAF challenge clears and Next.js has injected its data island.
     await page
         .waitForFunction(
@@ -193,10 +194,10 @@ export function buildCompanyHandler(input: ActorInput, billing?: { canSaveReview
 
         const pp = firstData?.props?.pageProps ?? {};
         const bu = pp.businessUnit ?? pp.business ?? {};
-
-        if (!bu || Object.keys(bu).length === 0) {
+        const firstPageError = reviewPageValidationError(firstData, slug, page.url());
+        if (firstPageError) {
             request.noRetry = true;
-            throw new Error(`No Trustpilot company page was found for "${slug}". pageProps keys: ${Object.keys(pp).join(', ') || 'none'}.`);
+            throw new Error(`${firstPageError} Requested company: "${slug}".`);
         }
         parsedCompanySlugs.add(slug);
 
@@ -274,14 +275,15 @@ export function buildCompanyHandler(input: ActorInput, billing?: { canSaveReview
                     savedReviewCountsBySlug.set(slug, reviewCount);
                 }
 
-                if (charge.eventChargeLimitReached) {
+                const requestedTargetReached = recordWasSaved && reviewCount >= maxReviews;
+                if (charge.eventChargeLimitReached && !requestedTargetReached) {
                     spendingLimitReached = true;
                     request.noRetry = true;
                     log.warning(`Charge limit reached for ${REVIEW_SCRAPED_EVENT}; stopping without saving more reviews.`);
                     break;
                 }
 
-                if (reviewCount >= maxReviews) break;
+                if (requestedTargetReached) break;
             }
 
             if (reviews.length > 0 && parseableRowsOnPage === 0) {
@@ -323,6 +325,13 @@ export function buildCompanyHandler(input: ActorInput, billing?: { canSaveReview
             if (!currentData) {
                 coverageWarnings.add(`${slug}: missing data on page ${pageNum}; output is partial`);
                 log.info(`Page ${pageNum} returned no data for ${resolvedName}; stopping pagination.`);
+                break;
+            }
+            const pageError = reviewPageValidationError(currentData, slug, page.url(), bu);
+            if (pageError) {
+                coverageWarnings.add(`${slug}: rejected page ${pageNum}; output is partial`);
+                request.noRetry = true;
+                log.warning(`Page ${pageNum} rejected for ${resolvedName}: ${pageError}`);
                 break;
             }
         }
