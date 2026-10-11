@@ -1,0 +1,9 @@
+{
+  "companyNames": ["nike.com", "adidas.com"],
+  "companyUrls": [],
+  "maxReviewsPerCompany": 10,
+  "sortBy": "most_recent",
+  "filterByRating": "all",
+  "verifiedOnly": false,
+  "proxyConfiguration": { "useApifyProxy": false }
+}

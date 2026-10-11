@@ -1,10 +1,60 @@
-# Trustpilot Reviews Scraper
+# Trustpilot Reviews Scraper - Brand Ratings & Replies
 
-Scrape public Trustpilot company reviews and rating signals without a Trustpilot login or API key. Provide company domains or Trustpilot review slugs such as `nike.com`, or full Trustpilot review URLs, and receive structured review rows for brand monitoring, competitor research, support analysis, and reporting.
+Turn public Trustpilot reviews into a brand research table for US CX teams, ecommerce agencies and support analysts. Export ratings, review text, company replies and observed reply timing; retrieve overall TrustScore summaries separately. No Trustpilot login or API key required.
 
-Current pricing: **$1 per 1,000 successfully saved reviews + $0.00005 per Actor Start event**. The start fee is scheduled to become **$0.00030 on 24 October 2026 at 02:50 IST**; review pricing and included platform usage stay unchanged. Apify support confirmed cancellation of the former $0.04/company-check proposal, and the company-check event has been removed from the manifest. The live Apify Pricing tab remains authoritative.
+Use company domains or review slugs such as `nike.com`, or full Trustpilot company review URLs. The dataset contains public review rows, while the current run's `COMPANIES` key contains company-level metrics. These are different sources for your reporting workflow, not a ready-made sentiment dashboard.
+
+Current pricing: **$1 per 1,000 successfully saved reviews + $0.00005 per Actor Start event**. The already scheduled start fee becomes **$0.00030 on 23 October 2026 at 21:20 UTC (24 October at 02:50 IST)**; review pricing and included platform usage stay unchanged. Apify support confirmed cancellation of the former $0.04/company-check proposal, and the company-check event has been removed from the manifest. The live Apify Pricing tab remains authoritative; this documentation package does not change pricing.
 
 The Actor uses a browser because Trustpilot can present anti-bot challenges. Direct access is the default to control cost; proxy settings remain available when a user explicitly needs them. The Actor never silently switches a run to Residential traffic. It saves reviews to the default dataset and parsed company summaries to the current run's `COMPANIES` key.
+
+US-first describes the buyer workflow, **not US-only reviewers or verified US customers**. Reviews on a company page may be global. The Actor has no reviewer-country filter, built-in sentiment scoring, automatic alerts, or generated CX report, and does not provide persistent watchlist history. Repeated-run comparisons and reports happen in your own spreadsheet or workflow system.
+
+## US brand review research
+
+Use the [US Brand Review & Reply Research task](https://apify.com/fascinating_lentil/trustpilot-reviews-scraper/examples/us-brand-review-research) to start with two illustrative brands, Nike and Adidas. Replace these domains with appropriate company review pages for your research; example inclusion is not an endorsement or a claim that the brands' review populations are comparable.
+
+The starter requests **up to ten recent reviews per brand**, all ratings, without a verified-only filter or proxy. It uses the existing 1024 MB browser configuration. A source block, spending limit, unavailable page or exhausted matching feed can return fewer than twenty rows; successful status alone does not establish complete coverage.
+
+```json
+{
+  "companyNames": ["nike.com", "adidas.com"],
+  "companyUrls": [],
+  "maxReviewsPerCompany": 10,
+  "sortBy": "most_recent",
+  "filterByRating": "all",
+  "verifiedOnly": false,
+  "proxyConfiguration": { "useApifyProxy": false }
+}
+```
+
+If twenty reviews are successfully saved, listed Actor events total **$0.02005 now**, or **$0.02030 after the already scheduled start-fee change**, at 1024 MB. Fewer saved reviews reduce the review-event charge. Company summaries have no separate company-check charge. These are fee calculations, not measured operating costs or a profitability guarantee; any explicit proxy use and account subscription have separate implications.
+
+This is a saved configuration, **not newly live tested** for this documentation package. It creates no schedule, stored historical baseline, comparison report or automatic customer outreach. The existing Nike task remains unchanged. Start with the one-review quick start below if you first want a smaller run.
+
+## CSV comparison and CX reporting
+
+1. Keep the saved input, run ID, collection time, `OUTPUT` record and `COMPANIES` record with the full review export. In `OUTPUT`, inspect `failedRequestCount`, `partial`, `coverageWarnings`, `spendingLimitReached` and saved counts before calling a sample complete.
+2. Export the **full default dataset** as CSV/JSON, or explicitly select the required fields. The existing Reviews view does **not** include `companyUrl`, `replyStatus`, `replyLatencyHours` or `reviewUpdatedDate`; use the full export for identity joins and reply analysis.
+3. Group reviews by the company review-page identity, not a mutable company display name. Normalize `companyUrl` to its `/review/<domain-or-slug>` path without query parameters when joining to `COMPANIES.trustpilotUrl`. Retain `reviewId` for deduplication; do not join on review title or author identity.
+4. Compare the sampled ratings and manually reviewed themes with source URLs and sample sizes. Keep overall `COMPANIES.overallTrustScore` and `totalReviewCount` separate: a ten-review sample average is not the company's TrustScore or a representative customer-satisfaction estimate.
+5. Report only **observed** reply status. `no_reply_observed` means no reply text was exposed in this row at collection time, not proof the company ignored the customer. `replyLatencyHours` compares the exposed review/reply publication dates; it is not a verified first-response SLA. Keep null or reversed/missing timestamp results unknown.
+
+| Reporting question | Existing fields | Boundary |
+| --- | --- | --- |
+| Which company and review? | `companyUrl`, `reviewId`, `reviewUrl`, `scrapedAt` | Retain identity and observation time; deduplicate across exports yourself. |
+| What do sampled reviews rate? | `starRating`, `reviewTitle`, `reviewBody` | Use valid ratings only, disclose sample size and manually assess themes; no automatic sentiment model. |
+| When was feedback posted? | `reviewPostedDate`, `dateOfExperience`, `reviewUpdatedDate` | Posted date and experience date are different; edits can change text or timestamps. |
+| Was a reply visible? | `replyStatus`, `companyReply`, `companyReplyDate` | Missing reply text is only an absence in the observed source. |
+| What timing can be calculated? | `replyLatencyHours` | Use known, non-negative timestamp pairs; edited/replaced replies are not first-response evidence. |
+| What does the company summary say? | `COMPANIES.overallTrustScore`, `totalReviewCount`, rating percentages | Separate current source-level metrics from your limited review sample. |
+| How much was collected? | `OUTPUT` counts, failures and coverage warnings | A cap, block, filter or partial run must be disclosed; twenty requested rows are not guaranteed. |
+
+For repeated snapshots, retain previous exports outside the Actor. Join by `reviewId` and company identity, then compare known fields while retaining `reviewUpdatedDate` and both `scrapedAt` timestamps. A review absent from a later capped sample does not prove deletion. The Actor can save and charge the same review on a later run; deduplicating your report does not refund those events.
+
+A `verifiedPurchase` value reflects the source's observed verification label, not independent purchase verification. False can also mean no verified label was exposed. Public review text may contain personal information: minimize what you retain or share, and do not publish raw review text as a client example without appropriate rights and review.
+
+See the [brand review comparison checklist](https://github.com/erenmyeager15/trustpilot-reviews-scraper/blob/main/examples/US-BRAND-REVIEW-GUIDE.md) for an external report handoff. No scored competitor ranking, generated report, consumer profiling or support-system integration is created automatically.
 
 ## Quick start
 

@@ -1,8 +1,8 @@
 {
     "actorSpecification": 1,
     "name": "trustpilot-reviews-scraper",
-    "title": "Trustpilot Reviews Scraper: Ratings & Replies",
-    "description": "Public Trustpilot reviews, ratings, replies, reply timing and company summaries. $1/1,000 saved reviews plus the small Actor-start charge. No Trustpilot API key required.",
+    "title": "Trustpilot Reviews Scraper - Brand Ratings & Replies",
+    "description": "Research public Trustpilot reviews, ratings, company replies and reply timing for US CX teams and ecommerce agencies. Compare brand samples and export CSV; company TrustScore summaries are stored separately. $1/1,000 saved reviews plus the start fee. No company-check fee or API key.",
     "version": "1.0",
     "buildTag": "latest",
   "categories": ["BUSINESS", "MARKETING"],
